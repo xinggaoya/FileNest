@@ -13,6 +13,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "ky": "^1.7.2",
     "naive-ui": "^2.40.1",
     "pinia": "^2.1.7",
     "unplugin-auto-import": "^0.18.3",

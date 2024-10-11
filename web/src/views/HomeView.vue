@@ -2,30 +2,38 @@
   <div class="file-manager" style="height: calc(100% - 45px)">
     <n-card class="home-max-card" content-style="height: calc(100% - 120px)">
       <template v-slot:header>
-        <n-icon>
-          <BellTwotone />
-        </n-icon>
+        <n-image :src="Logo" width="30px" height="30px" style="vertical-align: middle" />
         File Manager
       </template>
       <template v-slot:default>
-        <HomeHeader />
+        <HomeHeader v-model:breadcrumb="path" @breadcrumb-click="handelBreadcrumbClick"/>
         <div class="file-list" style="height: calc(100% - 55px)">
-          <div class="file-item-header">
-            <span class="font-title">名称</span>
-            <span class="font-title">大小</span>
-            <span class="font-title">修改时间</span>
-          </div>
           <n-scrollbar>
-            <div v-for="(file, index) in files" :key="index" class="file-item" :class="{ selected: selectedFileIndex === index }" @click="toggleSelection(index)" @mouseover="handleMouseOver(index)" @mouseout="handleMouseOut(index)">
-              <span>
-                <n-icon>
-                  <FileTextOutlined />
-                </n-icon>
-                {{ file.name }}
-              </span>
-              <span>{{ file.size }} KB</span>
-              <span>{{ file.date }}</span>
-            </div>
+            <table style="font-size: 16px; width: 100%">
+              <tr style="text-align: left">
+                <th>名称</th>
+                <th>大小</th>
+                <th>修改时间</th>
+              </tr>
+              <tr
+                v-for="(file, index) in files"
+                :key="index"
+                @click="handleFileClick(file)"
+                class="file-item"
+              >
+                <td>
+                  <n-icon>
+                    <FolderOpenTwotone v-if="file.isDir" />
+                    <FileTextOutlined v-else />
+                  </n-icon>
+                  {{ file.fileName }}
+                </td>
+                <td>{{ (file.fileSize / 1024 / 1024).toFixed(2) }} MB</td>
+                <td>
+                  <n-time :time="file.modTime"></n-time>
+                </td>
+              </tr>
+            </table>
           </n-scrollbar>
         </div>
       </template>
@@ -34,41 +42,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { FileTextOutlined, BellTwotone } from '@vicons/antd';
-import HomeHeader from '@/components/home/HomeHeader.vue';
+import { ref, onMounted } from 'vue'
+import { FileTextOutlined, FolderOpenTwotone } from '@vicons/antd'
+import Logo from '@/assets/logo.png'
+import HomeHeader from '@/components/home/HomeHeader.vue'
+import { getFileList } from '@/api/file/file'
 
-// 示例数据
-const files = [
-  { name: 'document.txt', size: 1024, type: 'file', date: '2023-05-18' },
-  { name: 'image.jpg', size: 512, type: 'file', date: '2023-05-18' },
-  { name: 'video.mp4', size: 20480, type: 'file', date: '2023-05-18' },
-  { name: 'report.pdf', size: 1536, type: 'file', date: '2023-05-18' },
-  { name: 'notes.txt', size: 768, type: 'file', date: '2023-05-18' },
-  { name: 'Documents', size: 0, type: 'folder', date: '2023-05-18' },
-  { name: 'document.txt', size: 1024, type: 'file', date: '2023-05-18' }
-];
+const path = ref(['home'])
+const files = ref([])
 
-// 选中的文件索引
-const selectedFileIndex = ref(-1);
-
-// 鼠标悬停的文件索引
-const hoveredFileIndex = ref(-1);
-
-// 切换文件选中状态
-function toggleSelection(index: number) {
-  selectedFileIndex.value = index === selectedFileIndex.value ? -1 : index;
+const getList = () => {
+  // 拼接路径
+  const list = [...path.value]
+  list[0] = '/'
+  let pathStr = list.join('/')
+  getFileList({
+    path: pathStr
+  }).then((res: any) => {
+    files.value = res.data
+  })
 }
 
-// 处理鼠标悬停事件
-function handleMouseOver(index: number) {
-  hoveredFileIndex.value = index;
+const handleFileClick = (file: any) => {
+  if (file.isDir) {
+    path.value.push(file.fileName)
+    getList()
+  }
 }
 
-// 处理鼠标移出事件
-function handleMouseOut() {
-  hoveredFileIndex.value = -1;
+const handelBreadcrumbClick = (p: number) => {
+  console.log(p)
+  path.value.splice(p)
+  getList()
 }
+
+onMounted(() => {
+  getList()
+})
 </script>
 
 <style scoped>
@@ -76,10 +86,6 @@ function handleMouseOut() {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-}
-
-.font-title {
-  font-weight: bold;
 }
 
 .home-max-card {
@@ -106,32 +112,16 @@ function handleMouseOut() {
 }
 
 .file-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
   border-radius: 5px;
   font-size: 16px;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.3s ease;
-}
-
-.file-item.selected {
-  background-color: #40a9ff;
-  color: white;
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
 }
 
 .file-item:hover {
   background-color: #e6f7ff;
   transform: scale(1.02);
-}
-
-.file-item:hover:not(.selected) {
-  background-color: #e6f7ff;
-  transform: scale(1.02);
-}
-
-.n-scrollbar .n-scrollbar__wrap {
-  height: calc(100% - 55px);
 }
 </style>

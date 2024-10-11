@@ -1,8 +1,8 @@
 package impl
 
 import (
-	"FileNest/common/model"
 	"FileNest/internal/consts"
+	"FileNest/internal/model"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -16,21 +16,36 @@ import (
   @date: 2024/9/28
 **/
 
-type HelloWordServiceImpl struct{}
+type FileServiceImpl struct{}
 
-type SysUser struct {
-	model.BaseEntity
-	Name string `json:"name" gorm:"type:varchar(50)"`
-	Age  int    `json:"age" gorm:"type:int"`
-	Sex  string `json:"sex" gorm:"type:varchar(2)"`
-	Desc string `json:"desc" gorm:"type:varchar(150)"`
+func (h *FileServiceImpl) GetFileList(path string) ([]model.FileInfo, error) {
+	p := filepath.Join(consts.UploadDir, path)
+	// 读取路径下的文件列表
+	files, err := os.ReadDir(p)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read directory", err)
+	}
+	var fs []model.FileInfo
+
+	for _, file := range files {
+		info, e := file.Info()
+		if e != nil {
+			return nil, fmt.Errorf("unable to read file info", e)
+		}
+		fs = append(fs, model.FileInfo{
+			FileName: file.Name(),
+			FilePath: filepath.Join(path, file.Name()),
+			FileSize: info.Size(),
+			FileType: file.Type().String(),
+			IsDir:    file.IsDir(),
+			ModTime:  info.ModTime(),
+		})
+	}
+
+	return fs, err
 }
 
-func (h *HelloWordServiceImpl) GetFileList(path string) {
-
-}
-
-func (h *HelloWordServiceImpl) UploadFile(file *multipart.FileHeader, chunkIndex, totalChunks int) error {
+func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, chunkIndex, totalChunks int) error {
 	// Create the file to store the chunk
 	chunkPath := filepath.Join(consts.TempDir, "chunk_"+strconv.Itoa(chunkIndex))
 	outFile, err := os.Create(chunkPath)

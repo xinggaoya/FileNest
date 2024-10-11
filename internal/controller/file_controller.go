@@ -18,6 +18,17 @@ func NewFileController() *FileController {
 	return &FileController{}
 }
 
+// GetFileList 获取文件列表
+func (h *FileController) GetFileList(ctx fiber.Ctx) error {
+	path := ctx.Query("path")
+
+	list, err := service.NewFileService().GetFileList(path)
+	if err != nil {
+		return err
+	}
+	return response.Success(ctx, list)
+}
+
 func (h *FileController) UploadFile(ctx fiber.Ctx) error {
 	file, err := ctx.FormFile("file")
 	if err != nil {

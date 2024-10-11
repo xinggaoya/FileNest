@@ -3,17 +3,11 @@
     <n-flex class="search-bar" justify="space-between">
       <div>
         <n-breadcrumb>
-          <n-breadcrumb-item>
+          <n-breadcrumb-item v-for="(item, index) in breadcrumb"
+                             :key="index"
+                             @click="handelBreadcrumbClick(item)">
             <n-icon :component="FolderOpenTwotone" />
-            Home
-          </n-breadcrumb-item>
-          <n-breadcrumb-item>
-            <n-icon :component="FolderOpenTwotone" />
-            pathA
-          </n-breadcrumb-item>
-          <n-breadcrumb-item>
-            <n-icon :component="FolderOpenTwotone" />
-            pathB
+            {{ item}}
           </n-breadcrumb-item>
         </n-breadcrumb>
       </div>
@@ -28,6 +22,13 @@
 import { ref } from 'vue'
 import { FolderOpenTwotone } from '@vicons/antd'
 
+const breadcrumb = defineModel('breadcrumb')
+
+const emit = defineEmits(['breadcrumb-click'])
+
+const handelBreadcrumbClick = (item: string) => {
+  emit('breadcrumb-click', item)
+}
 // 排序选项
 const sortOptions = [
   { label: 'Name', value: 'name' },

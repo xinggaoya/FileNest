@@ -6,7 +6,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/idempotency"
-	"github.com/gofiber/fiber/v3/middleware/limiter"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 )
 
@@ -20,12 +19,13 @@ func Install(app *fiber.App) {
 
 	RegisterGlobalMiddleware(app)
 
-	index := app.Group("/")
+	index := app.Group("/api")
 
 	helloWordController := controller.NewFileController()
 
-	api := index.Group("/api")
+	api := index.Group("/file")
 
+	api.Get("/list", helloWordController.GetFileList)
 	api.Post("/upload", helloWordController.UploadFile)
 }
 
@@ -34,7 +34,7 @@ func RegisterGlobalMiddleware(app *fiber.App) {
 	// 跨域
 	app.Use(cors.New())
 	// 限流
-	app.Use(limiter.New())
+	//app.Use(limiter.New())
 	// 重复请求
 	app.Use(idempotency.New())
 	// 错误处理

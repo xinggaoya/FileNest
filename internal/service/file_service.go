@@ -1,6 +1,7 @@
 package service
 
 import (
+	"FileNest/internal/model"
 	"FileNest/internal/service/impl"
 	"mime/multipart"
 )
@@ -11,10 +12,10 @@ import (
 **/
 
 type FileService interface {
-	GetFileList(path string)
+	GetFileList(path string) ([]model.FileInfo, error)
 	UploadFile(file *multipart.FileHeader, chunkIndex, totalChunks int) error
 }
 
 func NewFileService() FileService {
-	return &impl.HelloWordServiceImpl{}
+	return &impl.FileServiceImpl{}
 }
