@@ -6,7 +6,13 @@
         File Manager
       </template>
       <template v-slot:default>
-        <HomeHeader v-model:breadcrumb="path" @breadcrumb-click="handelBreadcrumbClick"/>
+        <HomeHeader
+          v-model:breadcrumb="path"
+          @breadcrumb-click="handelBreadcrumbClick"
+          @upload-change="handelUpload"
+        />
+        <n-button type="primary" size="small" @click="handelUploadClick">上传文件</n-button>
+
         <div class="file-list" style="height: calc(100% - 55px)">
           <n-scrollbar>
             <table style="font-size: 16px; width: 100%">
@@ -46,10 +52,15 @@ import { ref, onMounted } from 'vue'
 import { FileTextOutlined, FolderOpenTwotone } from '@vicons/antd'
 import Logo from '@/assets/logo.png'
 import HomeHeader from '@/components/home/HomeHeader.vue'
-import { getFileList } from '@/api/file/file'
+import { getFileList, uploadFile } from '@/api/file/file'
+import { useMessage } from 'naive-ui'
 
 const path = ref(['home'])
 const files = ref([])
+const file = ref()
+const uploading = ref(false)
+const chunkSize = 5 * 1024 * 1024 // 5MB
+const message = useMessage()
 
 const getList = () => {
   // 拼接路径
@@ -63,6 +74,10 @@ const getList = () => {
   })
 }
 
+const handelUpload = (f: any) => {
+  file.value = f.file.file
+}
+
 const handleFileClick = (file: any) => {
   if (file.isDir) {
     path.value.push(file.fileName)
@@ -71,9 +86,38 @@ const handleFileClick = (file: any) => {
 }
 
 const handelBreadcrumbClick = (p: number) => {
-  console.log(p)
   path.value.splice(p)
   getList()
+}
+
+// 上传文件
+const handelUploadClick = async () => {
+  if (!file.value) {
+    message.warning('请选择文件')
+    return
+  }
+
+  uploading.value = true
+  const totalChunks = Math.ceil(file.value.size / chunkSize)
+
+  // Start the upload process
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize
+    const end = Math.min(start + chunkSize, file.value.size)
+    const chunk = file.value.slice(start, end)
+
+    await uploadChunk(chunk, i, totalChunks)
+  }
+
+  uploading.value = false
+  getList()
+}
+
+const uploadChunk = async (chunk, index, totalChunks) => {
+  await uploadFile(file.value, {
+    indexChunk: index + 1,
+    totalChunks: totalChunks
+  })
 }
 
 onMounted(() => {

@@ -18,6 +18,7 @@ import (
 // 配置 Fiber 应用实例
 func newFiberConfig() fiber.Config {
 	return fiber.Config{
+		BodyLimit: 1024 * 1024 * 1024 * 10,
 		ErrorHandler: func(ctx fiber.Ctx, err error) error {
 			return response.Error(ctx, "系统出现异常")
 		},
@@ -31,7 +32,8 @@ func Run() {
 	app := fiber.New(newFiberConfig())
 	router.Install(app)
 
-	port := flag.Int("port", 3000, "port")
+	// 上传大小
+	port := flag.Int("port", 9040, "port")
 	flag.Parse()
 	log.Fatal(app.Listen(fmt.Sprintf(":%d", *port)))
 }

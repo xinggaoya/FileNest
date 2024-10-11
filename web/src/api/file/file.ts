@@ -1,15 +1,11 @@
-import httpService from '@/api/http'
+import {request} from '@/api/http'
 
 // 获取文件列表
 export const getFileList = (params: any) => {
-  return httpService.get('file/list', {
-    searchParams: params
-  })
+  return request.get('file/list', params)
 }
 
 // 上传文件
 export const uploadFile = (file: any, params: any) => {
-  return httpService.uploadFile('file/upload', file, {
-    json: params
-  })
+  return request.upload('file/upload', file, params)
 }

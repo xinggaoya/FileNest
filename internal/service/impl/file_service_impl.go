@@ -1,6 +1,7 @@
 package impl
 
 import (
+	"FileNest/common/glog"
 	"FileNest/internal/consts"
 	"FileNest/internal/model"
 	"fmt"
@@ -46,11 +47,16 @@ func (h *FileServiceImpl) GetFileList(path string) ([]model.FileInfo, error) {
 }
 
 func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, chunkIndex, totalChunks int) error {
+	// 判断文件夹是否存在，不存在则创建
+	err := os.MkdirAll(consts.TempDir, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("unable to create temp directory", err)
+	}
 	// Create the file to store the chunk
 	chunkPath := filepath.Join(consts.TempDir, "chunk_"+strconv.Itoa(chunkIndex))
 	outFile, err := os.Create(chunkPath)
 	if err != nil {
-		return fmt.Errorf("Unable to create chunk file", err)
+		return fmt.Errorf("unable to create chunk file", err)
 	}
 	defer outFile.Close()
 
@@ -66,7 +72,7 @@ func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, chunkIndex, tot
 	}
 
 	// If this is the last chunk, merge the files
-	if chunkIndex == totalChunks-1 {
+	if chunkIndex == totalChunks {
 		mergeChunks(totalChunks, file.Filename)
 	}
 	return nil
@@ -74,6 +80,12 @@ func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, chunkIndex, tot
 
 // 合并分片文件
 func mergeChunks(totalChunks int, filename string) {
+	// 判断文件夹是否存在，不存在则创建
+	err := os.MkdirAll(consts.UploadDir, os.ModePerm)
+	if err != nil {
+		glog.Errorf("unable to create upload directory %s", err)
+		return
+	}
 	outFilePath := filepath.Join(consts.UploadDir, filename)
 	outFile, err := os.Create(outFilePath)
 	if err != nil {

@@ -19,14 +19,15 @@ func Install(app *fiber.App) {
 
 	RegisterGlobalMiddleware(app)
 
-	index := app.Group("/api")
+	index := app.Group("/")
 
 	helloWordController := controller.NewFileController()
 
-	api := index.Group("/file")
+	api := index.Group("/api")
 
-	api.Get("/list", helloWordController.GetFileList)
-	api.Post("/upload", helloWordController.UploadFile)
+	file := api.Group("/file")
+	file.Get("/list", helloWordController.GetFileList)
+	file.Post("/upload", helloWordController.UploadFile)
 }
 
 // RegisterGlobalMiddleware 注册全局中间件
