@@ -1,0 +1,10 @@
+version: '3'
+services:
+  app:
+    build: .
+    ports:
+      - "9040:9040"
+    restart: always
+    volumes:
+      # 客户机 /www/FileNest 挂载到容器 /app
+      - /www/FileNest:/app
