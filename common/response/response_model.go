@@ -51,17 +51,17 @@ func NewPageResponseModel(ctx fiber.Ctx, code int, message string, total int64, 
 
 // Success 成功
 func Success(ctx fiber.Ctx, data any) error {
-	return NewResponseModel(ctx, 0, "success", data)
+	return NewResponseModel(ctx, 1000, "success", data)
 }
 
 // Error 失败
 func Error(ctx fiber.Ctx, message string) error {
-	return NewResponseModel(ctx, 10001, message, nil)
+	return NewResponseModel(ctx, 1001, message, nil)
 }
 
 // PageSuccess 分页成功
 func PageSuccess(ctx fiber.Ctx, total int64, data any) error {
-	return NewPageResponseModel(ctx, 0, "success", total, data)
+	return NewPageResponseModel(ctx, 1000, "success", total, data)
 }
 
 // PageError 分页失败

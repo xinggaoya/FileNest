@@ -14,39 +14,267 @@
         </n-breadcrumb>
       </div>
       <n-flex>
-        <n-button type="primary" size="small" @click="handelBreadcrumbClick('')">
-          <n-icon :component="FolderOpenTwotone" />
+        <n-button type="primary" size="small" @click="handelCreateFolder">
+          <template v-slot:icon>
+            <n-icon :component="CreateOutline" />
+          </template>
           新建文件夹
         </n-button>
-        <div>
-          <n-upload action="#" :default-upload="false" @change="handleUpload" :show-file-list="false">
-            <n-button type="primary" size="small" @click="handleUploadClick">
-              <n-icon :component="FolderOpenTwotone" />
-              上传文件
-            </n-button>
-          </n-upload>
-        </div>
+        <n-button type="primary" size="small" @click="handleUploadPanClick">
+          <template v-slot:icon>
+            <n-icon :component="CloudUploadOutline" />
+          </template>
+          上传文件
+        </n-button>
       </n-flex>
     </n-flex>
+    <div>
+      <n-drawer v-model:show="drawerShow" :mask-closable="false" :width="502">
+        <n-drawer-content closable>
+          <template v-slot:header>
+            <n-icon :component="FolderOpenTwotone" :size="20" />
+            <n-text>上传文件</n-text>
+          </template>
+          <template v-slot:default>
+            <n-flex vertical>
+              <div>
+                <n-flex justify="space-between">
+                  <n-form-item label="目录">
+                    <n-highlight
+                      :text="'当前目录：' + breadcrumb?.join('/')"
+                      :patterns="[breadcrumb?.join('/')]"
+                    />
+                  </n-form-item>
+                  <n-form-item label="上传类型">
+                    <n-radio-group
+                      v-model:value="uploadType"
+                      size="small"
+                      style="margin-bottom: 10px"
+                    >
+                      <n-radio
+                        v-for="(item, index) in ['文件', '文件夹']"
+                        :key="index"
+                        :value="item"
+                        >{{ item }}
+                      </n-radio>
+                    </n-radio-group>
+                  </n-form-item>
+                </n-flex>
+                <n-form-item label="分块大小">
+                  <n-input-number :min="1" :max="100" v-model:value="chunkSizeIndex" />
+                </n-form-item>
+              </div>
+              <n-upload
+                multiple
+                :directory="uploadType === '文件夹'"
+                action="#"
+                :default-upload="false"
+                v-model:file-list="fileList"
+              >
+                <n-upload-dragger>
+                  <div style="margin-bottom: 12px">
+                    <n-icon size="48" :depth="3">
+                      <ArchiveIcon />
+                    </n-icon>
+                  </div>
+                  <n-text style="font-size: 16px"> 点击或者拖动文件到该区域来上传</n-text>
+                  <n-p depth="3" style="margin: 8px 0 0 0">
+                    请不要上传敏感数据，比如你的银行卡号和密码，信用卡号有效期和安全码
+                  </n-p>
+                </n-upload-dragger>
+                <div>
+                  <n-text depth="3">下载速度：{{ currentUploadSpeed.toFixed(2) }} MB/s</n-text>
+                </div>
+              </n-upload>
+            </n-flex>
+          </template>
+          <template v-slot:footer>
+            <n-button type="primary" @click="handleUploadClick">上传</n-button>
+          </template>
+        </n-drawer-content>
+      </n-drawer>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, h, ref } from 'vue'
 import { FolderOpenTwotone } from '@vicons/antd'
+import { ArchiveOutline as ArchiveIcon, CreateOutline, CloudUploadOutline } from '@vicons/ionicons5'
+import { useModal, NButton, NInput, useMessage, type UploadFileInfo } from 'naive-ui'
+import { createFolder, uploadFile } from '@/api/file/file'
 
-const breadcrumb = defineModel('breadcrumb')
+const modal = useModal()
+const drawerShow = ref(false)
+const uploading = ref(false)
+const chunkSizeIndex = ref(25)
+const chunkSize = computed(() => {
+  return chunkSizeIndex.value * 1024 * 1024
+})
+const message = useMessage()
+const fileList = ref<UploadFileInfo[]>([])
+const uploadType = ref('文件')
+const dirValue = ref('')
+const breadcrumb = defineModel<Array<string>>('breadcrumb', {
+  default: []
+})
+// 文件总大小
+const fileTotalSize = ref(0)
+// 当前上传文件大小
+const currentUploadSize = ref(0)
+// 上传速度
+const currentUploadSpeed = ref(0)
 
-const emit = defineEmits(['breadcrumb-click', 'upload-click', 'upload-change'])
+const props = defineProps({
+  // 刷新
+  getList: {
+    type: Function,
+    default: () => {}
+  }
+})
 
 const handelBreadcrumbClick = (item: string) => {
-  emit('breadcrumb-click', item)
+  breadcrumb.value = breadcrumb.value.slice(0, breadcrumb.value.indexOf(item) + 1)
+  props.getList()
 }
 
-const handleUploadClick = () => {
-  emit('upload-click')
+// 新建文件夹
+const handelCreateFolder = () => {
+  const m = modal.create({
+    title: '新建文件夹',
+    preset: 'card',
+    style: {
+      width: '500px'
+    },
+    content: () =>
+      h(
+        NInput,
+        {
+          placeholder: '请输入文件夹名称',
+          autofocus: true,
+          onUpdateValue: (value: string) => {
+            dirValue.value = value
+          }
+        },
+        {}
+      ),
+    action: () =>
+      h(
+        NButton,
+        {
+          type: 'primary',
+          onClick: () => {
+            const value = dirValue.value
+            createNewFolder(value)
+            m.destroy()
+          }
+        },
+        () => '提交'
+      )
+  })
 }
-const handleUpload = (file) => {
-  emit('upload-change', file)
+
+// 创建文件夹
+const createNewFolder = (name: string) => {
+  const pathStr = [...breadcrumb.value]
+  // 移除第一个
+  pathStr.shift()
+  pathStr.push(name)
+  createFolder(pathStr.join('/')).then((res: any) => {
+    props.getList()
+  })
+}
+
+// 上传文件
+const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
+  if (!file) {
+    message.warning('请选择文件')
+    return
+  }
+
+  uploading.value = true
+  const totalChunks = Math.ceil(file.size / chunkSize.value)
+  const fileName = fullPath
+
+  // 存储总片大小
+  fileTotalSize.value = file.size
+  // 开始下载时间
+  const startTime = Date.now()
+
+  // Start the upload process
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize.value
+    const end = Math.min(start + chunkSize.value, file.size)
+    const chunk = file.slice(start, end)
+
+    await uploadChunk(chunk, fileName, i, totalChunks, indexFile, startTime)
+  }
+
+  uploading.value = false
+  props.getList()
+
+  // 清理进度条
+  currentUploadSize.value = 0
+  fileTotalSize.value = 0
+  currentUploadSpeed.value = 0
+}
+
+const uploadChunk = async (
+  chunk: any,
+  fileName: string,
+  index: number,
+  totalChunks: number,
+  indexFile: number,
+  startTime: number
+) => {
+  // 保存路径
+  const path = [...breadcrumb.value]
+  path.shift()
+
+  // 进度条
+  const progress = (event: any) => {
+    currentUploadSize.value += event.loaded
+    // 计算速度 mb 保留两位小数
+    const speed = Math.round((event.loaded / (Date.now() - startTime)) * 1000) / 1024 / 1024
+    currentUploadSpeed.value = speed
+    const file = fileList.value[indexFile]
+    file.status = 'uploading'
+    file.percentage = Math.round((currentUploadSize.value / fileTotalSize.value) * 100)
+    if (currentUploadSize.value >= fileTotalSize.value) {
+      file.status = 'finished'
+    }
+  }
+
+  await uploadFile(
+    chunk,
+    {
+      indexChunk: index + 1,
+      totalChunks: totalChunks,
+      fileName: fileName,
+      path: path.join('/')
+    },
+    progress
+  ).then((res: any) => {
+    // console.log(res)
+  })
+}
+
+const handleUploadPanClick = () => {
+  drawerShow.value = true
+}
+const handleUploadClick = async () => {
+  if (fileList.value.length === 0) {
+    message.warning('请选择需要上传的文件')
+    return
+  }
+  for (let i = 0; i < fileList.value.length; i++) {
+    if (fileList.value[i].status !== 'finished') {
+      await handelUpload(fileList.value[i].file, fileList.value[i].fullPath, i)
+    }
+  }
+
+  // 清理已完成任务
+  fileList.value = fileList.value.filter((item: any) => item.status !== 'finished')
 }
 </script>
 

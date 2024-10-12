@@ -13,7 +13,9 @@ import (
 
 type FileService interface {
 	GetFileList(path string) ([]model.FileInfo, error)
-	UploadFile(file *multipart.FileHeader, chunkIndex, totalChunks int) error
+	UploadFile(file *multipart.FileHeader, path, fileName string, chunkIndex, totalChunks int) error
+	CreateDir(path string) error
+	DeleteFile(path string) error
 }
 
 func NewFileService() FileService {

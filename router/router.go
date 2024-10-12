@@ -27,6 +27,8 @@ func Install(app *fiber.App) {
 
 	file := api.Group("/file")
 	file.Get("/list", helloWordController.GetFileList)
+	file.Post("/create", helloWordController.CreateFolder)
+	file.Delete("/delete", helloWordController.DeleteFile)
 	file.Post("/upload", helloWordController.UploadFile)
 }
 

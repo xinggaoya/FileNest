@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@vicons/ionicons5':
+        specifier: ^0.12.0
+        version: 0.12.0
       axios:
         specifier: ^1.7.7
         version: 1.7.7
@@ -639,6 +642,9 @@ packages:
 
   '@vicons/antd@0.12.0':
     resolution: {integrity: sha512-C0p6aO1EmGG1QHrqgUWQS1No20934OdWSRQshM5NIDK5H1On6tC26U0hT6Rmp40KfUsvhvX5YW8BoWJdNFifPg==}
+
+  '@vicons/ionicons5@0.12.0':
+    resolution: {integrity: sha512-Iy1EUVRpX0WWxeu1VIReR1zsZLMc4fqpt223czR+Rpnrwu7pt46nbnC2ycO7ItI/uqDLJxnbcMC7FujKs9IfFA==}
 
   '@vitejs/plugin-vue@5.1.4':
     resolution: {integrity: sha512-N2XSI2n3sQqp5w7Y/AN/L2XDjBIRGqXko+eDp42sydYSBeJuSm5a1sLf8zakmo8u7tA8NmBgoDLA1HeOESjp9A==}
@@ -2383,6 +2389,8 @@ snapshots:
   '@ungap/structured-clone@1.2.0': {}
 
   '@vicons/antd@0.12.0': {}
+
+  '@vicons/ionicons5@0.12.0': {}
 
   '@vitejs/plugin-vue@5.1.4(vite@5.4.8(@types/node@20.16.11))(vue@3.5.11(typescript@5.4.5))':
     dependencies:
