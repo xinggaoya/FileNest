@@ -89,7 +89,7 @@
             </n-flex>
           </template>
           <template v-slot:footer>
-            <n-button type="primary" @click="handleUploadClick">上传</n-button>
+            <n-button type="primary" :loading="uploading" @click="handleUploadClick">上传</n-button>
           </template>
         </n-drawer-content>
       </n-drawer>
@@ -100,14 +100,14 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
 import { FolderOpenTwotone } from '@vicons/antd'
-import { ArchiveOutline as ArchiveIcon, CreateOutline, CloudUploadOutline } from '@vicons/ionicons5'
-import { useModal, NButton, NInput, useMessage, type UploadFileInfo } from 'naive-ui'
+import { ArchiveOutline as ArchiveIcon, CloudUploadOutline, CreateOutline } from '@vicons/ionicons5'
+import { NButton, NInput, type UploadFileInfo, useMessage, useModal } from 'naive-ui'
 import { createFolder, uploadFile } from '@/api/file/file'
 
 const modal = useModal()
 const drawerShow = ref(false)
 const uploading = ref(false)
-const chunkSizeIndex = ref(25)
+const chunkSizeIndex = ref(90)
 const chunkSize = computed(() => {
   return chunkSizeIndex.value * 1024 * 1024
 })
@@ -118,12 +118,9 @@ const dirValue = ref('')
 const breadcrumb = defineModel<Array<string>>('breadcrumb', {
   default: []
 })
-// 文件总大小
-const fileTotalSize = ref(0)
-// 当前上传文件大小
-const currentUploadSize = ref(0)
+
 // 上传速度
-const currentUploadSpeed = ref(0)
+let currentUploadSpeed = ref(0)
 
 const props = defineProps({
   // 刷新
@@ -195,10 +192,48 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
   const totalChunks = Math.ceil(file.size / chunkSize.value)
   const fileName = fullPath
 
-  // 存储总片大小
-  fileTotalSize.value = file.size
+  // 文件总大小
+  let fileTotalSize = 0
+  // 当前上传文件大小
+  let currentUploadSize = 0
+
   // 开始下载时间
   const startTime = Date.now()
+  // 存储总片大小
+  fileTotalSize = file.size
+  // 上传文件分片
+  const uploadChunk = async (chunk, index) => {
+    // 保存路径
+    const path = [...breadcrumb.value]
+    path.shift()
+
+    // 进度条
+    const progress = (event: any) => {
+      currentUploadSize += event.bytes
+      // 计算速度 mb 保留两位小数
+      currentUploadSpeed.value =
+        Math.round((event.bytes / (Date.now() - startTime)) * 1000) / 1024 / 1024
+      const file = fileList.value[indexFile]
+      file.status = 'uploading'
+      file.percentage = Math.round((currentUploadSize / fileTotalSize) * 100)
+      if (currentUploadSize >= fileTotalSize) {
+        file.status = 'finished'
+      }
+    }
+
+    await uploadFile(
+      chunk,
+      {
+        indexChunk: index + 1,
+        totalChunks: totalChunks,
+        fileName: fileName,
+        path: path.join('/')
+      },
+      progress
+    ).then((res: any) => {
+      // console.log(res)
+    })
+  }
 
   // Start the upload process
   for (let i = 0; i < totalChunks; i++) {
@@ -206,55 +241,11 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
     const end = Math.min(start + chunkSize.value, file.size)
     const chunk = file.slice(start, end)
 
-    await uploadChunk(chunk, fileName, i, totalChunks, indexFile, startTime)
+    await uploadChunk(chunk, i)
   }
 
   props.getList()
-
-  // 清理进度条
-  currentUploadSize.value = 0
-  fileTotalSize.value = 0
   currentUploadSpeed.value = 0
-}
-
-const uploadChunk = async (
-  chunk: any,
-  fileName: string,
-  index: number,
-  totalChunks: number,
-  indexFile: number,
-  startTime: number
-) => {
-  // 保存路径
-  const path = [...breadcrumb.value]
-  path.shift()
-
-  // 进度条
-  const progress = (event: any) => {
-    currentUploadSize.value += event.loaded
-    // 计算速度 mb 保留两位小数
-    const speed = Math.round((event.loaded / (Date.now() - startTime)) * 1000) / 1024 / 1024
-    currentUploadSpeed.value = speed
-    const file = fileList.value[indexFile]
-    file.status = 'uploading'
-    file.percentage = Math.round((currentUploadSize.value / fileTotalSize.value) * 100)
-    if (currentUploadSize.value >= fileTotalSize.value) {
-      file.status = 'finished'
-    }
-  }
-
-  await uploadFile(
-    chunk,
-    {
-      indexChunk: index + 1,
-      totalChunks: totalChunks,
-      fileName: fileName,
-      path: path.join('/')
-    },
-    progress
-  ).then((res: any) => {
-    // console.log(res)
-  })
 }
 
 const handleUploadPanClick = () => {

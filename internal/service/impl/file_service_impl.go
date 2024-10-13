@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 /**
@@ -68,7 +69,7 @@ func (h *FileServiceImpl) GetFileList(path string) ([]model.FileInfo, error) {
 			FileSize: info.Size(),
 			FileType: fileType,
 			IsDir:    file.IsDir(),
-			ModTime:  info.ModTime(),
+			ModTime:  info.ModTime().Format(time.DateTime),
 		})
 	}
 	return fs, nil

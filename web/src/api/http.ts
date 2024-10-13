@@ -76,6 +76,7 @@ class HttpClient {
       }
     }
 
+    // 计算表单总大小
     return this.axiosInstance.post(url, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

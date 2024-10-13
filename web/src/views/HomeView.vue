@@ -30,13 +30,13 @@
                 >
                   <td>
                     <n-flex>
-                      <n-icon :size="20" :component="getFileIcon(file)"/>
+                      <n-icon :size="20" :component="getFileIcon(file)" />
                       <n-ellipsis style="max-width: 240px">{{ file.fileName }}</n-ellipsis>
                     </n-flex>
                   </td>
                   <td>{{ (file.fileSize / 1024 / 1024).toFixed(2) }} MB</td>
                   <td>
-                    <n-time :time="file.modTime"></n-time>
+                    {{ file.modTime }}
                   </td>
                 </tr>
               </transition-group>
@@ -60,7 +60,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, h, nextTick } from 'vue'
-import { FileExcelOutlined, FileTextOutlined, FileWordOutlined, FolderOpenTwotone } from '@vicons/antd'
+import {
+  FileExcelOutlined,
+  FileTextOutlined,
+  FileWordOutlined,
+  FolderOpenTwotone
+} from '@vicons/antd'
 import { ImageOutline, VideocamOutline } from '@vicons/ionicons5'
 import Logo from '@/assets/logo.png'
 import HomeHeader from '@/components/home/HomeHeader.vue'
@@ -133,7 +138,7 @@ const handleContextmenu = (e: any, file: any) => {
   })
 }
 
-const handleSelect = (key:string) => {
+const handleSelect = (key: string) => {
   showDropdown.value = false
   if (key === 'download') {
     // a 标签
