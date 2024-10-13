@@ -202,7 +202,7 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
   // 存储总片大小
   fileTotalSize = file.size
   // 上传文件分片
-  const uploadChunk = async (chunk, index) => {
+  const uploadChunk = async (chunk: any, index: number) => {
     // 保存路径
     const path = [...breadcrumb.value]
     path.shift()
