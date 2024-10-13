@@ -92,6 +92,6 @@ class HttpClient {
   }
 }
 
-export const request = new HttpClient('/api', {
+export const request = new HttpClient(import.meta.env.VITE_BASE_AXIOS_URL, {
   Authorization: 'Bearer your-token-here'
 })
