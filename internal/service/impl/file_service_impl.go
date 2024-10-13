@@ -19,6 +19,20 @@ import (
 
 type FileServiceImpl struct{}
 
+func (h *FileServiceImpl) DownloadFile(filePath string) (string, error) {
+	// 检查文件是否存在
+	filePath = filepath.Join(consts.UploadDir, filePath)
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", fmt.Errorf("stat error: %s", err)
+	}
+
+	if _, err = os.Stat(absPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("file does not exist")
+	}
+	return absPath, nil
+}
+
 func (h *FileServiceImpl) CreateDir(path string) error {
 	path = filepath.Join(consts.UploadDir, path)
 	fileInfo, err := os.Stat(path)

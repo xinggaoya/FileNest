@@ -4,6 +4,8 @@ import (
 	"FileNest/common/response"
 	"FileNest/internal/service"
 	"github.com/gofiber/fiber/v3"
+	"net/url"
+	"path/filepath"
 	"strconv"
 )
 
@@ -27,6 +29,22 @@ func (h *FileController) GetFileList(ctx fiber.Ctx) error {
 		return err
 	}
 	return response.Success(ctx, list)
+}
+
+// DownloadFile 下载文件
+func (h *FileController) DownloadFile(ctx fiber.Ctx) error {
+	path := ctx.Query("path")
+	absPath, err := service.NewFileService().DownloadFile(path)
+	if err != nil {
+		return response.Error(ctx, err.Error())
+	}
+	// 对文件名进行 URL 编码，并设置 Content-Disposition 响应头
+	fileName := filepath.Base(absPath)
+	encodedFileName := url.QueryEscape(fileName)
+	ctx.Set("Content-Type", "application/octet-stream")
+	ctx.Set("Content-Disposition", "attachment; filename*=UTF-8''"+encodedFileName)
+
+	return ctx.SendFile(absPath)
 }
 
 // CreateFolder 创建文件夹、

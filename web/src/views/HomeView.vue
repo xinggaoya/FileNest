@@ -78,9 +78,8 @@ const message = useMessage()
 const dialog = useDialog()
 const options: DropdownOption[] = [
   {
-    label: '编辑',
-    key: 'edit',
-    disabled: true
+    label: '下载',
+    key: 'download'
   },
   {
     label: () => h('span', { style: { color: 'red' } }, '删除'),
@@ -134,21 +133,33 @@ const handleContextmenu = (e: any, file: any) => {
   })
 }
 
-const handleSelect = () => {
+const handleSelect = (key:string) => {
   showDropdown.value = false
-  dialog.success({
-    title: '提示',
-    content: '请再次确认删除该文件？',
-    positiveText: '确定',
-    negativeText: '取消',
-    maskClosable: false,
-    onPositiveClick: () => {
-      deleteFile(selectFile.value.filePath).then((res: any) => {
-        message.success('删除成功')
-        getList()
-      })
-    }
-  })
+  if (key === 'download') {
+    // a 标签
+    const a = document.createElement('a')
+    a.href = '/api/file/download?path=' + selectFile.value.filePath
+    a.download = selectFile.value.fileName
+    a.click()
+    a.remove()
+    return
+  }
+  if (key === 'delete') {
+    dialog.success({
+      title: '提示',
+      content: '请再次确认删除该文件？',
+      positiveText: '确定',
+      negativeText: '取消',
+      maskClosable: false,
+      onPositiveClick: () => {
+        deleteFile(selectFile.value.filePath).then((res: any) => {
+          message.success('删除成功')
+          getList()
+        })
+      }
+    })
+    return
+  }
 }
 const onClickoutside = () => {
   showDropdown.value = false

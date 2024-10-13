@@ -30,6 +30,7 @@ func Install(app *fiber.App) {
 	file.Post("/create", helloWordController.CreateFolder)
 	file.Delete("/delete", helloWordController.DeleteFile)
 	file.Post("/upload", helloWordController.UploadFile)
+	file.Get("/download", helloWordController.DownloadFile)
 }
 
 // RegisterGlobalMiddleware 注册全局中间件

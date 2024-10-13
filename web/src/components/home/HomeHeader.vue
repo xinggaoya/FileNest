@@ -192,7 +192,6 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
     return
   }
 
-  uploading.value = true
   const totalChunks = Math.ceil(file.size / chunkSize.value)
   const fileName = fullPath
 
@@ -210,7 +209,6 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
     await uploadChunk(chunk, fileName, i, totalChunks, indexFile, startTime)
   }
 
-  uploading.value = false
   props.getList()
 
   // 清理进度条
@@ -267,12 +265,15 @@ const handleUploadClick = async () => {
     message.warning('请选择需要上传的文件')
     return
   }
+  uploading.value = true
   for (let i = 0; i < fileList.value.length; i++) {
     if (fileList.value[i].status !== 'finished') {
       await handelUpload(fileList.value[i].file, fileList.value[i].fullPath, i)
     }
   }
 
+  message.success('上传成功')
+  uploading.value = false
   // 清理已完成任务
   fileList.value = fileList.value.filter((item: any) => item.status !== 'finished')
 }

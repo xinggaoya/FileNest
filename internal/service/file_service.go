@@ -16,6 +16,8 @@ type FileService interface {
 	UploadFile(file *multipart.FileHeader, path, fileName string, chunkIndex, totalChunks int) error
 	CreateDir(path string) error
 	DeleteFile(path string) error
+	// DownloadFile 下载
+	DownloadFile(path string) (string, error)
 }
 
 func NewFileService() FileService {

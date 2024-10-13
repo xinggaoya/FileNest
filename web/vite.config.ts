@@ -29,7 +29,7 @@ export default defineConfig({
     host: "0.0.0.0",
     proxy: {
       "/api": {
-        target: "http://localhost:9040",
+        target: import.meta.env.VITE_API_URL,
         changeOrigin: true,
         ws: true,
       },
