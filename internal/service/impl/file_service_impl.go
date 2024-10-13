@@ -99,6 +99,11 @@ func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, path, fileName 
 	name := filepath.Base(fileName)
 	tempFileName := name + "_chunk_" + strconv.Itoa(chunkIndex)
 	chunkPath := filepath.Join(consts.TempDir, tempFileName)
+	// 判断文件是否已上传并且不是最后一个快 直接成功
+	_, err = os.Stat(chunkPath)
+	if err == nil && chunkIndex != totalChunks {
+		return nil
+	}
 	outFile, err := os.Create(chunkPath)
 	if err != nil {
 		return fmt.Errorf("unable to create chunk file: %s", err)

@@ -7,7 +7,9 @@ export const getFileList = (params: any) => {
 
 // 上传文件
 export const uploadFile = (file: any, params: any, progress: Function) => {
-  return request.upload('file/upload', file, params, {}, progress)
+  return request.upload('file/upload', file, params, {
+    timeout: 0
+  }, progress)
 }
 
 // 创建文件夹

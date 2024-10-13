@@ -60,9 +60,18 @@
                     </n-radio-group>
                   </n-form-item>
                 </n-flex>
-                <n-form-item label="分块大小">
-                  <n-input-number :min="1" :max="100" v-model:value="chunkSizeIndex" />
-                </n-form-item>
+                <n-flex justify="space-between">
+                  <n-form-item label="分块大小" style="width: 150px">
+                    <n-input-number :min="1" v-model:value="chunkSizeIndex" >
+                      <template #suffix>
+                        MB
+                      </template>
+                    </n-input-number>
+                  </n-form-item>
+                  <n-form-item label="同时下载" style="width: 150px">
+                    <n-input-number :min="1" :max="100" v-model:value="downloadCount" />
+                  </n-form-item>
+                </n-flex>
               </div>
               <n-upload
                 multiple
@@ -111,6 +120,8 @@ const chunkSizeIndex = ref(90)
 const chunkSize = computed(() => {
   return chunkSizeIndex.value * 1024 * 1024
 })
+// 同时下载数量
+const downloadCount = ref(5)
 const message = useMessage()
 const fileList = ref<UploadFileInfo[]>([])
 const uploadType = ref('文件')
@@ -232,6 +243,8 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
       progress
     ).then((res: any) => {
       // console.log(res)
+    }).catch((err: any) => {
+      fileList.value[indexFile].status = 'error'
     })
   }
 
@@ -253,21 +266,40 @@ const handleUploadPanClick = () => {
 }
 const handleUploadClick = async () => {
   if (fileList.value.length === 0) {
-    message.warning('请选择需要上传的文件')
-    return
+    message.warning('请选择需要上传的文件');
+    return;
   }
-  uploading.value = true
-  for (let i = 0; i < fileList.value.length; i++) {
-    if (fileList.value[i].status !== 'finished') {
-      await handelUpload(fileList.value[i].file, fileList.value[i].fullPath, i)
-    }
-  }
+  uploading.value = true;
 
-  message.success('上传成功')
-  uploading.value = false
+  const MAX_CONCURRENT_UPLOADS = downloadCount.value; // 控制同时上传的最大数量
+  let activeUploads = 0; // 当前正在上传的数量
+
+  // 创建一个队列来存储所有的上传任务
+  const uploadQueue = Array.from({ length: fileList.value.length }, (_, index) =>
+    async () => {
+      if (fileList.value[index].status !== 'finished') {
+        await handelUpload(fileList.value[index].file, fileList.value[index].fullPath, index);
+        activeUploads--;
+      }
+    }
+  );
+
+  // 使用Promise.all来等待所有任务完成
+  await Promise.all(uploadQueue.map(async (task) => {
+    while (activeUploads >= MAX_CONCURRENT_UPLOADS) {
+      // 如果当前正在上传的数量达到最大值，则等待
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    activeUploads++;
+    await task();
+  }));
+
+  message.success('上传成功');
+  uploading.value = false;
   // 清理已完成任务
-  fileList.value = fileList.value.filter((item: any) => item.status !== 'finished')
+  fileList.value = fileList.value.filter(item => item.status !== 'finished');
 }
+
 </script>
 
 <style scoped>
