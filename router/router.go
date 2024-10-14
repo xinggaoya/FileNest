@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/idempotency"
+	"github.com/gofiber/fiber/v3/middleware/pprof"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 )
 
@@ -45,4 +46,5 @@ func RegisterGlobalMiddleware(app *fiber.App) {
 	app.Use(recover.New())
 	// 日志
 	app.Use(middlewares.Logger())
+	app.Use(pprof.New(pprof.Config{Prefix: "/endpoint-prefix"}))
 }

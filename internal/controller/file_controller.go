@@ -1,12 +1,18 @@
 package controller
 
 import (
+	"FileNest/common/glog"
 	"FileNest/common/response"
+	"FileNest/internal/consts"
 	"FileNest/internal/service"
+	"fmt"
 	"github.com/gofiber/fiber/v3"
+	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 /**
@@ -96,10 +102,47 @@ func (h *FileController) UploadFile(ctx fiber.Ctx) error {
 
 	intIndexChunk, _ := strconv.Atoi(indexChunk)
 	intTotalChunks, _ := strconv.Atoi(totalChunks)
-	err = service.NewFileService().
-		UploadFile(file, path, fileName, intIndexChunk, intTotalChunks)
+
+	err = os.MkdirAll(consts.TempDir, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("unable to create temp directory: %s", err)
+	}
+	name := filepath.Base(fileName)
+	tempFileName := name + "_chunk_" + strconv.Itoa(intIndexChunk)
+	chunkPath := filepath.Join(consts.TempDir, tempFileName)
+
+	outFile, err := os.Create(chunkPath)
 	if err != nil {
 		return response.Error(ctx, err.Error())
+	}
+	defer outFile.Close()
+
+	f, err := file.Open()
+	if err != nil {
+		return response.Error(ctx, err.Error())
+	}
+	defer f.Close()
+	if _, err = io.Copy(outFile, f); err != nil {
+		return response.Error(ctx, err.Error())
+	}
+
+	if intIndexChunk == intTotalChunks {
+		err = service.NewFileService().
+			UploadFile(path, fileName, intTotalChunks)
+		if err != nil {
+			return response.Error(ctx, err.Error())
+		}
+
+		// 删除临时文件
+		go func() {
+			time.Sleep(5 * time.Second)
+			err = os.RemoveAll(consts.TempDir)
+			if err != nil {
+				glog.Errorf("unable to remove temp directory %s", err)
+				return
+			}
+			glog.Info("清理临时文件成功")
+		}()
 	}
 	return response.Success(ctx, nil)
 }

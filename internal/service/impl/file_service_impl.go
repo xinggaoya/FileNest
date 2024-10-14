@@ -6,7 +6,6 @@ import (
 	"FileNest/internal/model"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -91,63 +90,17 @@ func (h *FileServiceImpl) DeleteFile(path string) error {
 	return os.Remove(p)
 }
 
-func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, path, fileName string, chunkIndex, totalChunks int) error {
-	err := os.MkdirAll(consts.TempDir, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("unable to create temp directory: %s", err)
-	}
-	name := filepath.Base(fileName)
-	tempFileName := name + "_chunk_" + strconv.Itoa(chunkIndex)
-	chunkPath := filepath.Join(consts.TempDir, tempFileName)
-	// 判断文件是否已上传并且不是最后一个快 直接成功
-	_, err = os.Stat(chunkPath)
-	if err == nil && chunkIndex != totalChunks {
-		return nil
-	}
-	outFile, err := os.Create(chunkPath)
-	if err != nil {
-		return fmt.Errorf("unable to create chunk file: %s", err)
-	}
-	defer func(outFile *os.File) {
-		err = outFile.Close()
-		if err != nil {
-			glog.Errorf("close file error: %s", err)
-		}
-	}(outFile)
-
-	f, err := file.Open()
-	if err != nil {
-		return fmt.Errorf("unable to open chunk file: %s", err)
-	}
-	defer func(f multipart.File) {
-		err = f.Close()
-		if err != nil {
-			glog.Errorf("close file error: %s", err)
-		}
-	}(f)
-	_, err = io.Copy(outFile, f)
-	if err != nil {
-		return fmt.Errorf("unable to write chunk to file: %s", err)
-	}
-
-	if chunkIndex == totalChunks {
-		mergeChunks(totalChunks, fileName, path)
-	}
-	return nil
-}
-
-// 合并分片文件
-func mergeChunks(totalChunks int, filename, path string) {
-	outFilePath := filepath.Join(consts.UploadDir, path, filename)
+func (h *FileServiceImpl) UploadFile(path, fileName string, totalChunks int) error {
+	outFilePath := filepath.Join(consts.UploadDir, path, fileName)
 	err := os.MkdirAll(filepath.Dir(outFilePath), os.ModePerm)
 	if err != nil {
 		glog.Errorf("unable to create upload directory %s", err)
-		return
+		return fmt.Errorf("unable to create upload directory %s", err)
 	}
 	outFile, err := os.Create(outFilePath)
 	if err != nil {
 		glog.Errorf("unable to create output file %s", err)
-		return
+		return fmt.Errorf("unable to create output file %s", err)
 	}
 	defer func(outFile *os.File) {
 		err = outFile.Close()
@@ -157,26 +110,24 @@ func mergeChunks(totalChunks int, filename, path string) {
 	}(outFile)
 
 	for i := 0; i < totalChunks; i++ {
-		name := filepath.Base(filename)
+		name := filepath.Base(fileName)
 		tempFileName := name + "_chunk_" + strconv.Itoa(i+1)
 		chunkPath := filepath.Join(consts.TempDir, tempFileName)
-		chunkFile, err := os.Open(chunkPath)
-		if err != nil {
-			glog.Errorf("unable to open chunk file %s: %v", chunkPath, err)
+		chunkFile, e := os.Open(chunkPath)
+		if e != nil {
+			glog.Errorf("unable to open chunk file %s: %v", chunkPath, e)
 			continue
 		}
 
-		_, err = io.Copy(outFile, chunkFile)
-		if err != nil {
-			glog.Errorf("unable to copy chunk to output file %s: %v", chunkPath, err)
-			return
+		_, e = io.Copy(outFile, chunkFile)
+		if e != nil {
+			glog.Errorf("unable to copy chunk to output file %s: %v", chunkPath, e)
+			return fmt.Errorf("unable to copy chunk to output file %s: %v", chunkPath, e)
 		}
 
-		if err := chunkFile.Close(); err != nil {
-			glog.Errorf("unable to close chunk file %s: %v", chunkPath, err)
-		}
-		if err := os.Remove(chunkPath); err != nil {
-			glog.Errorf("unable to remove chunk file %s: %v", chunkPath, err)
+		if e = chunkFile.Close(); e != nil {
+			glog.Errorf("unable to close chunk file %s: %v", chunkPath, e)
 		}
 	}
+	return nil
 }

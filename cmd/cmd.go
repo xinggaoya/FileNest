@@ -18,10 +18,12 @@ import (
 // 配置 Fiber 应用实例
 func newFiberConfig() fiber.Config {
 	return fiber.Config{
-		BodyLimit: 1024 * 1024 * 1024 * 10,
+		BodyLimit:                    1024 * 1024 * 1024 * 10,
+		DisablePreParseMultipartForm: true,
 		ErrorHandler: func(ctx fiber.Ctx, err error) error {
 			return response.Error(ctx, "系统出现异常")
 		},
+		StreamRequestBody: true, // 开启流式处理
 	}
 }
 

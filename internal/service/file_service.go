@@ -3,7 +3,6 @@ package service
 import (
 	"FileNest/internal/model"
 	"FileNest/internal/service/impl"
-	"mime/multipart"
 )
 
 /**
@@ -13,7 +12,7 @@ import (
 
 type FileService interface {
 	GetFileList(path string) ([]model.FileInfo, error)
-	UploadFile(file *multipart.FileHeader, path, fileName string, chunkIndex, totalChunks int) error
+	UploadFile(path, fileName string, totalChunks int) error
 	CreateDir(path string) error
 	DeleteFile(path string) error
 	// DownloadFile 下载
