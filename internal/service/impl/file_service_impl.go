@@ -108,13 +108,23 @@ func (h *FileServiceImpl) UploadFile(file *multipart.FileHeader, path, fileName 
 	if err != nil {
 		return fmt.Errorf("unable to create chunk file: %s", err)
 	}
-	defer outFile.Close()
+	defer func(outFile *os.File) {
+		err = outFile.Close()
+		if err != nil {
+			glog.Errorf("close file error: %s", err)
+		}
+	}(outFile)
 
 	f, err := file.Open()
 	if err != nil {
 		return fmt.Errorf("unable to open chunk file: %s", err)
 	}
-	defer f.Close()
+	defer func(f multipart.File) {
+		err = f.Close()
+		if err != nil {
+			glog.Errorf("close file error: %s", err)
+		}
+	}(f)
 	_, err = io.Copy(outFile, f)
 	if err != nil {
 		return fmt.Errorf("unable to write chunk to file: %s", err)
@@ -139,7 +149,12 @@ func mergeChunks(totalChunks int, filename, path string) {
 		glog.Errorf("unable to create output file %s", err)
 		return
 	}
-	defer outFile.Close()
+	defer func(outFile *os.File) {
+		err = outFile.Close()
+		if err != nil {
+			glog.Errorf("close file error: %s", err)
+		}
+	}(outFile)
 
 	for i := 0; i < totalChunks; i++ {
 		name := filepath.Base(filename)
