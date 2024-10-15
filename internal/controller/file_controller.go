@@ -136,12 +136,16 @@ func (h *FileController) UploadFile(ctx fiber.Ctx) error {
 		// 删除临时文件
 		go func() {
 			time.Sleep(5 * time.Second)
-			err = os.RemoveAll(consts.TempDir)
-			if err != nil {
-				glog.Errorf("unable to remove temp directory %s", err)
-				return
+			for i := 0; i < intTotalChunks; i++ {
+				t := name + "_chunk_" + strconv.Itoa(i)
+				c := filepath.Join(consts.TempDir, t)
+				err = os.Remove(c)
+				if err != nil {
+					glog.Errorf("delete temp file error: %s", err)
+					return
+				}
 			}
-			glog.Info("清理临时文件成功")
+			glog.Infof("delete temp file success")
 		}()
 	}
 	return response.Success(ctx, nil)
