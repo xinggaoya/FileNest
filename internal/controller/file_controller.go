@@ -7,7 +7,6 @@ import (
 	"FileNest/internal/service"
 	"fmt"
 	"github.com/gofiber/fiber/v3"
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -111,18 +110,7 @@ func (h *FileController) UploadFile(ctx fiber.Ctx) error {
 	tempFileName := name + "_chunk_" + strconv.Itoa(intIndexChunk)
 	chunkPath := filepath.Join(consts.TempDir, tempFileName)
 
-	outFile, err := os.Create(chunkPath)
-	if err != nil {
-		return response.Error(ctx, err.Error())
-	}
-	defer outFile.Close()
-
-	f, err := file.Open()
-	if err != nil {
-		return response.Error(ctx, err.Error())
-	}
-	defer f.Close()
-	if _, err = io.Copy(outFile, f); err != nil {
+	if err = ctx.SaveFile(file, chunkPath); err != nil {
 		return response.Error(ctx, err.Error())
 	}
 
