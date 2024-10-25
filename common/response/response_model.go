@@ -1,8 +1,6 @@
 package response
 
-import (
-	"github.com/gofiber/fiber/v3"
-)
+import "github.com/gin-gonic/gin"
 
 /**
   @author: XingGao
@@ -20,20 +18,16 @@ type PageRes struct {
 	List  interface{} `json:"list"`
 }
 
-func NewResponseModel(ctx fiber.Ctx, code int, message string, data interface{}) error {
+func NewResponseModel(ctx *gin.Context, code int, message string, data interface{}) {
 	model := &Res{
 		Code:    code,
 		Message: message,
 		Data:    data,
 	}
-	err := ctx.Status(200).JSON(model)
-	if err != nil {
-		return err
-	}
-	return nil
+	ctx.JSON(200, model)
 }
 
-func NewPageResponseModel(ctx fiber.Ctx, code int, message string, total int64, data interface{}) error {
+func NewPageResponseModel(ctx *gin.Context, code int, message string, total int64, data interface{}) {
 	model := &Res{
 		Code:    code,
 		Message: message,
@@ -42,29 +36,25 @@ func NewPageResponseModel(ctx fiber.Ctx, code int, message string, total int64, 
 			List:  data,
 		},
 	}
-	err := ctx.Status(200).JSON(model)
-	if err != nil {
-		return err
-	}
-	return nil
+	ctx.JSON(200, model)
 }
 
 // Success 成功
-func Success(ctx fiber.Ctx, data any) error {
-	return NewResponseModel(ctx, 1000, "success", data)
+func Success(ctx *gin.Context, data any) {
+	NewResponseModel(ctx, 1000, "success", data)
 }
 
 // Error 失败
-func Error(ctx fiber.Ctx, message string) error {
-	return NewResponseModel(ctx, 1001, message, nil)
+func Error(ctx *gin.Context, message string) {
+	NewResponseModel(ctx, 1001, message, nil)
 }
 
 // PageSuccess 分页成功
-func PageSuccess(ctx fiber.Ctx, total int64, data any) error {
-	return NewPageResponseModel(ctx, 1000, "success", total, data)
+func PageSuccess(ctx *gin.Context, total int64, data any) {
+	NewPageResponseModel(ctx, 1000, "success", total, data)
 }
 
 // PageError 分页失败
-func PageError(ctx fiber.Ctx, message string) error {
-	return NewResponseModel(ctx, 1001, message, nil)
+func PageError(ctx *gin.Context, message string) {
+	NewResponseModel(ctx, 1001, message, nil)
 }

@@ -1,13 +1,12 @@
 package router
 
 import (
-	"FileNest/common/middlewares"
+	"FileNest/common/glog"
 	"FileNest/internal/controller"
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/idempotency"
-	"github.com/gofiber/fiber/v3/middleware/pprof"
-	"github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/gin-contrib/cors"
+	ginzap "github.com/gin-contrib/zap"
+	"github.com/gin-gonic/gin"
+	"time"
 )
 
 /**
@@ -16,7 +15,7 @@ import (
 **/
 
 // Install 安装路由
-func Install(app *fiber.App) {
+func Install(app *gin.Engine) {
 
 	RegisterGlobalMiddleware(app)
 
@@ -27,24 +26,20 @@ func Install(app *fiber.App) {
 	api := index.Group("/api")
 
 	file := api.Group("/file")
-	file.Get("/list", helloWordController.GetFileList)
-	file.Post("/create", helloWordController.CreateFolder)
-	file.Delete("/delete", helloWordController.DeleteFile)
-	file.Post("/upload", helloWordController.UploadFile)
-	file.Get("/download", helloWordController.DownloadFile)
+	file.GET("/list", helloWordController.GetFileList)
+	file.POST("/create", helloWordController.CreateFolder)
+	file.DELETE("/delete", helloWordController.DeleteFile)
+	file.POST("/upload", helloWordController.UploadFile)
+	file.GET("/download", helloWordController.DownloadFile)
 }
 
 // RegisterGlobalMiddleware 注册全局中间件
-func RegisterGlobalMiddleware(app *fiber.App) {
-	// 跨域
-	app.Use(cors.New())
-	// 限流
-	//app.Use(limiter.New())
-	// 重复请求
-	app.Use(idempotency.New())
-	// 错误处理
-	app.Use(recover.New())
-	// 日志
-	app.Use(middlewares.Logger())
-	app.Use(pprof.New(pprof.Config{Prefix: "/endpoint-prefix"}))
+func RegisterGlobalMiddleware(app *gin.Engine) {
+	app.Use(cors.Default())
+
+	app.Use(ginzap.Ginzap(glog.GetLogger(), time.RFC3339, true))
+
+	// Logs all panic to error log
+	//   - stack means whether output the stack info.
+	app.Use(ginzap.RecoveryWithZap(glog.GetLogger(), true))
 }

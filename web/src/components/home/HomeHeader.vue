@@ -257,14 +257,12 @@ const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
     const chunk = file.slice(start, end)
 
     const res = await uploadChunk(chunk, i)
-    console.log(res)
     if (res.code === 1005) {
       fileList.value[indexFile].status = 'finished'
       break
     }
   }
 
-  props.getList()
   currentUploadSpeed.value = 0
 }
 
@@ -301,6 +299,7 @@ const handleUploadClick = async () => {
     })
   )
 
+  props.getList()
   message.success('上传成功')
   uploading.value = false
   // 清理已完成任务

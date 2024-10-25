@@ -87,3 +87,8 @@ func Error(msg string, fields ...zap.Field) {
 func Errorf(msg string, fields ...any) {
 	logger.Error(fmt.Sprintf(msg, fields...))
 }
+
+// GetLogger 获取日志实例
+func GetLogger() *zap.Logger {
+	return logger
+}
