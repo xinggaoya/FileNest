@@ -95,12 +95,26 @@ func (h *FileController) UploadFile(ctx fiber.Ctx) error {
 	totalChunks := ctx.FormValue("totalChunks")
 	fileName := ctx.FormValue("fileName")
 	path := ctx.FormValue("path")
+	// 是否覆盖上传
+	override := ctx.FormValue("override")
+	if override == "" {
+		override = "false"
+	}
 	if fileName == "" || indexChunk == "" || totalChunks == "" {
 		return response.Error(ctx, "参数错误")
 	}
 
 	intIndexChunk, _ := strconv.Atoi(indexChunk)
 	intTotalChunks, _ := strconv.Atoi(totalChunks)
+	overrideBool, _ := strconv.ParseBool(override)
+	// 跳过重复上传
+	if intIndexChunk == intTotalChunks && !overrideBool {
+		// 检查文件是否存在
+		filePath := filepath.Join(consts.UploadDir, path, fileName)
+		if _, err = os.Stat(filePath); err == nil {
+			return response.NewResponseModel(ctx, 1005, "文件已存在", nil)
+		}
+	}
 
 	err = os.MkdirAll(consts.TempDir, os.ModePerm)
 	if err != nil {
@@ -124,14 +138,9 @@ func (h *FileController) UploadFile(ctx fiber.Ctx) error {
 		// 删除临时文件
 		go func() {
 			time.Sleep(5 * time.Second)
-			for i := 0; i < intTotalChunks; i++ {
-				t := name + "_chunk_" + strconv.Itoa(i)
-				c := filepath.Join(consts.TempDir, t)
-				err = os.Remove(c)
-				if err != nil {
-					glog.Errorf("delete temp file error: %s", err)
-					return
-				}
+			e := os.RemoveAll(consts.TempDir)
+			if e != nil {
+				glog.Errorf("delete temp file error: %s", e)
 			}
 			glog.Infof("delete temp file success")
 		}()

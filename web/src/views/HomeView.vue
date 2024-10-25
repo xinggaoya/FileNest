@@ -72,7 +72,7 @@ import HomeHeader from '@/components/home/HomeHeader.vue'
 import { deleteFile, getFileList } from '@/api/file/file'
 import { type DropdownOption, useMessage, useDialog } from 'naive-ui'
 
-const path = ref(['home'])
+const path = ref(['首页'])
 const files = ref<any>([])
 const showDropdown = ref(false)
 // 选中的文件

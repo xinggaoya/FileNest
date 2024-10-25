@@ -25,7 +25,7 @@ class HttpClient {
     this.axiosInstance.interceptors.response.use(
       (response: AxiosResponse) => {
         // 对响应数据做些什么
-        if (response.data.code !== 1000) {
+        if (response.data.code !== 1000 && response.data.code !== 1005) {
           throw new Error(response.data.message)
         }
         return response.data
