@@ -1,5 +1,5 @@
 # 构建阶段
-FROM golang:1.20-alpine as builder
+FROM golang:alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -47,7 +47,7 @@ RUN mkdir -p /app/storage
 RUN chmod +x /app/main
 
 # 暴露端口
-EXPOSE 8080
+EXPOSE 9040
 
 # 启动应用
 CMD ["./main"]

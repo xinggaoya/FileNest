@@ -21,7 +21,7 @@ services:
     container_name: filenest-api
     restart: always
     ports:
-      - "8080:8080"
+      - "9040:9040"
     volumes:
       - ./storage:/app/storage
     environment:
