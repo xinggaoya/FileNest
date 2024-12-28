@@ -1,0 +1,30 @@
+# 依赖目录
+node_modules
+vendor
+
+# 构建产物
+dist
+build
+
+# 开发文件
+.git
+.gitignore
+.env
+.env.*
+*.log
+*.md
+.DS_Store
+
+# 测试文件
+test
+tests
+coverage
+
+# Docker 相关
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 存储目录
+storage/*
+!storage/.gitkeep 

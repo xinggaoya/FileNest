@@ -1,0 +1,39 @@
+# 开发和构建文件
+.git
+.gitignore
+.env
+.env.*
+*.log
+*.md
+.DS_Store
+
+# 测试文件
+*_test.go
+test/
+tests/
+coverage/
+
+# 临时文件
+tmp/
+temp/
+
+# 编译产物
+bin/
+build/
+*.exe
+debug
+
+# Docker 相关
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 存储目录
+storage/*
+!storage/.gitkeep
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo 
