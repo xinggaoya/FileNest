@@ -1,314 +1,364 @@
 <template>
-  <div>
-    <n-flex class="search-bar" justify="space-between">
-      <div>
+  <div class="header-wrapper">
+    <div class="left-section">
+      <div class="nav-path">
         <n-breadcrumb>
-          <n-breadcrumb-item
-            v-for="(item, index) in breadcrumb"
-            :key="index"
-            @click="handelBreadcrumbClick(item)"
-          >
-            <n-icon :component="FolderOpenTwotone" />
-            {{ item }}
+          <n-breadcrumb-item @click="fileStore.enterDirectory('/')">
+            <n-icon><folder-outlined /></n-icon>
+            根目录
           </n-breadcrumb-item>
+          <template v-for="(path, index) in fileStore.currentPath" :key="index">
+            <n-icon><right-outlined /></n-icon>
+            <n-breadcrumb-item>{{ path }}</n-breadcrumb-item>
+          </template>
         </n-breadcrumb>
       </div>
-      <n-flex>
-        <n-button type="primary" size="small" @click="handelCreateFolder">
-          <template v-slot:icon>
-            <n-icon :component="CreateOutline" />
-          </template>
-          新建文件夹
-        </n-button>
-        <n-button type="primary" size="small" @click="handleUploadPanClick">
-          <template v-slot:icon>
-            <n-icon :component="CloudUploadOutline" />
-          </template>
-          上传文件
-        </n-button>
-      </n-flex>
-    </n-flex>
-    <div>
-      <n-drawer v-model:show="drawerShow" :mask-closable="false" :width="502">
-        <n-drawer-content closable>
-          <template v-slot:header>
-            <n-icon :component="FolderOpenTwotone" :size="20" />
-            <n-text>上传</n-text>
-          </template>
-          <template v-slot:default>
-            <n-flex vertical>
-              <div>
-                <n-flex justify="space-between">
-                  <n-form-item label="目录">
-                    <n-highlight
-                      :text="'当前目录：' + breadcrumb?.join('/')"
-                      :patterns="[breadcrumb?.join('/')]"
-                    />
-                  </n-form-item>
-                  <n-form-item label="上传类型">
-                    <n-radio-group
-                      v-model:value="uploadType"
-                      size="small"
-                      style="margin-bottom: 10px"
-                    >
-                      <n-radio
-                        v-for="(item, index) in ['文件', '文件夹']"
-                        :key="index"
-                        :value="item"
-                        >{{ item }}
-                      </n-radio>
-                    </n-radio-group>
-                  </n-form-item>
-                </n-flex>
-                <n-flex justify="space-between">
-                  <n-form-item label="分块大小" style="width: 150px">
-                    <n-input-number :min="1" v-model:value="chunkSizeIndex">
-                      <template #suffix> MB</template>
-                    </n-input-number>
-                  </n-form-item>
-                  <n-form-item label="同时下载" style="width: 130px">
-                    <n-input-number :min="1" :max="100" v-model:value="downloadCount" />
-                  </n-form-item>
-                  <n-form-item label="是否覆盖" style="width: 150px">
-                    <n-switch v-model:value="overwrite" />
-                  </n-form-item>
-                </n-flex>
-              </div>
-              <n-upload
-                multiple
-                :directory="uploadType === '文件夹'"
-                action="#"
-                :default-upload="false"
-                v-model:file-list="fileList"
-                :show-remove-button="false"
-                :show-retry-button="false"
-              >
-                <n-upload-dragger>
-                  <div style="margin-bottom: 12px">
-                    <n-icon size="48" :depth="3">
-                      <ArchiveIcon />
-                    </n-icon>
-                  </div>
-                  <n-text style="font-size: 16px"> 点击或者拖动文件到该区域来上传</n-text>
-                  <n-p depth="3" style="margin: 8px 0 0 0">
-                    请不要上传敏感数据，比如你的银行卡号和密码，信用卡号有效期和安全码
-                  </n-p>
-                </n-upload-dragger>
-                <div>
-                  <n-text depth="3">下载速度：{{ currentUploadSpeed.toFixed(2) }} MB/s</n-text>
-                </div>
-              </n-upload>
-            </n-flex>
-          </template>
-          <template v-slot:footer>
-            <n-button type="primary" :loading="uploading" @click="handleUploadClick">上传</n-button>
-          </template>
-        </n-drawer-content>
-      </n-drawer>
+    </div>
+
+    <!-- 右侧搜索框和操作按钮 -->
+    <div class="right-section">
+      <!-- 搜索框 -->
+      <div class="search-box">
+        <n-input-group>
+          <n-input
+            v-model:value="searchKeyword"
+            type="text"
+            placeholder="搜索文件..."
+            @keydown.enter="handleSearch"
+          >
+            <template #prefix>
+              <n-icon><search-outlined /></n-icon>
+            </template>
+          </n-input>
+          <n-button type="primary" ghost @click="handleSearch">
+            搜索
+          </n-button>
+        </n-input-group>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <n-space>
+          <n-button type="primary" @click="showUploadDrawer = true">
+            <template #icon>
+              <n-icon><upload-outlined /></n-icon>
+            </template>
+            上传
+          </n-button>
+          <n-button @click="handleCreateFolder">
+            <template #icon>
+              <n-icon><folder-add-outlined /></n-icon>
+            </template>
+            新建文件夹
+          </n-button>
+        </n-space>
+      </div>
     </div>
   </div>
+
+  <!-- 上传抽屉 -->
+  <n-drawer
+    v-model:show="showUploadDrawer"
+    :width="500"
+    placement="right"
+    title="上传文件"
+  >
+    <n-drawer-content>
+      <n-space vertical>
+        <n-upload
+          :custom-request="handleUpload"
+          :show-file-list="false"
+          :directory="false"
+          @change="handleUploadChange"
+        >
+          <n-upload-dragger>
+            <div class="upload-dragger-content">
+              <n-icon size="48" depth="3">
+                <upload-outlined />
+              </n-icon>
+              <n-text>点击或拖拽文件到此处上传</n-text>
+            </div>
+          </n-upload-dragger>
+        </n-upload>
+        <n-divider>或者</n-divider>
+        <n-upload
+          :custom-request="handleFolderUpload"
+          :show-file-list="false"
+          directory
+          @change="handleUploadChange"
+        >
+          <n-upload-dragger>
+            <div class="upload-dragger-content">
+              <n-icon size="48" depth="3">
+                <folder-add-outlined />
+              </n-icon>
+              <n-text>点击或拖拽文件夹到此处上传</n-text>
+            </div>
+          </n-upload-dragger>
+        </n-upload>
+
+        <!-- 上传进度列表 -->
+        <div class="upload-list" v-if="Object.keys(uploadStatus).length > 0">
+          <div class="upload-item" v-for="(status, key) in uploadStatus" :key="key">
+            <div class="upload-info">
+              <span class="filename">{{ key }}</span>
+              <span class="status">
+                {{ status.status === 'uploading' ? '上传中...' :
+                   status.status === 'finished' ? '上传完成' :
+                   '上传失败' }}
+              </span>
+            </div>
+            <n-progress
+              type="line"
+              :percentage="status.progress"
+              :status="status.status === 'error' ? 'error' :
+                      status.status === 'finished' ? 'success' : 'info'"
+              :show-indicator="true"
+            />
+            <div class="error-message" v-if="status.message">{{ status.message }}</div>
+          </div>
+        </div>
+      </n-space>
+    </n-drawer-content>
+  </n-drawer>
+
+  <!-- 创建文件夹对话框 -->
+  <n-modal
+    v-model:show="showCreateFolderDialog"
+    preset="dialog"
+    title="新建文件夹"
+    positive-text="确定"
+    negative-text="取消"
+    @positive-click="handleConfirmCreateFolder"
+  >
+    <n-input
+      v-model:value="newFolderName"
+      placeholder="请输入文件夹名称"
+      @keyup.enter="handleConfirmCreateFolder"
+    />
+  </n-modal>
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
-import { FolderOpenTwotone } from '@vicons/antd'
-import { ArchiveOutline as ArchiveIcon, CloudUploadOutline, CreateOutline } from '@vicons/ionicons5'
-import { NButton, NInput, type UploadFileInfo, useMessage, useModal } from 'naive-ui'
-import { createFolder, uploadFile } from '@/api/file/file'
+import { ref, reactive } from 'vue'
+import type { UploadFileInfo } from 'naive-ui'
+import type { UploadCustomRequestOptions } from 'naive-ui'
+import {
+  FolderOutlined,
+  FolderAddOutlined,
+  UploadOutlined,
+  RightOutlined,
+  SearchOutlined
+} from '@vicons/antd'
+import { uploadFile } from '@/api/file/file'
+import { useFileStore } from '@/stores/file'
+import { createDiscreteApi } from 'naive-ui'
 
-const modal = useModal()
-const drawerShow = ref(false)
-const uploading = ref(false)
-const chunkSizeIndex = ref(90)
-const chunkSize = computed(() => {
-  return chunkSizeIndex.value * 1024 * 1024
-})
-// 同时下载数量
-const downloadCount = ref(5)
-// 是否覆盖上传
-const overwrite = ref(false)
-const message = useMessage()
-const fileList = ref<UploadFileInfo[]>([])
-const uploadType = ref('文件')
-const dirValue = ref('')
-const breadcrumb = defineModel<Array<string>>('breadcrumb', {
-  default: []
-})
+const { message } = createDiscreteApi(['message'])
+const fileStore = useFileStore()
 
-// 上传速度
-let currentUploadSpeed = ref(0)
-
-const props = defineProps({
-  // 刷新
-  getList: {
-    type: Function,
-    default: () => {}
-  }
-})
-
-const handelBreadcrumbClick = (item: string) => {
-  breadcrumb.value = breadcrumb.value.slice(0, breadcrumb.value.indexOf(item) + 1)
-  props.getList()
-}
-
-// 新建文件夹
-const handelCreateFolder = () => {
-  const m = modal.create({
-    title: '新建文件夹',
-    preset: 'card',
-    style: {
-      width: '500px'
-    },
-    content: () =>
-      h(
-        NInput,
-        {
-          placeholder: '请输入文件夹名称',
-          autofocus: true,
-          onUpdateValue: (value: string) => {
-            dirValue.value = value
-          }
-        },
-        {}
-      ),
-    action: () =>
-      h(
-        NButton,
-        {
-          type: 'primary',
-          onClick: () => {
-            const value = dirValue.value
-            createNewFolder(value)
-            m.destroy()
-          }
-        },
-        () => '提交'
-      )
-  })
-}
-
-// 创建文件夹
-const createNewFolder = (name: string) => {
-  const pathStr = [...breadcrumb.value]
-  // 移除第一个
-  pathStr.shift()
-  pathStr.push(name)
-  createFolder(pathStr.join('/')).then((res: any) => {
-    props.getList()
-  })
-}
-
-// 上传文件
-const handelUpload = async (file: any, fullPath: any, indexFile: number) => {
-  if (!file) {
-    message.warning('请选择文件')
+// 搜索相关
+const searchKeyword = ref('')
+const handleSearch = () => {
+  if (!searchKeyword.value.trim()) {
     return
   }
+  fileStore.searchFile(searchKeyword.value)
+}
 
-  const totalChunks = Math.ceil(file.size / chunkSize.value)
-  const fileName = fullPath
+// 上传相关
+const showUploadDrawer = ref(false)
+interface UploadStatus {
+  progress: number
+  status: 'uploading' | 'finished' | 'error'
+  message?: string
+}
 
-  // 文件总大小
-  let fileTotalSize = 0
-  // 当前上传文件大小
-  let currentUploadSize = 0
+const uploadStatus = reactive<Record<string, UploadStatus>>({})
 
-  // 开始下载时间
-  const startTime = Date.now()
-  // 存储总片大小
-  fileTotalSize = file.size
-  // 上传文件分片
-  const uploadChunk = async (chunk: any, index: number) => {
-    // 保存路径
-    const path = [...breadcrumb.value]
-    path.shift()
+const handleUpload = async ({ file, onFinish, onError, onProgress }: UploadCustomRequestOptions) => {
+  if (!file) return
+  
+  const fileName = file.name
+  uploadStatus[fileName] = {
+    progress: 0,
+    status: 'uploading'
+  }
 
-    // 进度条
-    const progress = (event: any) => {
-      currentUploadSize += event.bytes
-      // 计算速度 mb 保留两位小数
-      currentUploadSpeed.value =
-        Math.round((event.bytes / (Date.now() - startTime)) * 1000) / 1024 / 1024
-      const file = fileList.value[indexFile]
-      file.status = 'uploading'
-      file.percentage = Math.round((currentUploadSize / fileTotalSize) * 100)
-      if (currentUploadSize >= fileTotalSize) {
-        file.status = 'finished'
-      }
-    }
-
-    return await uploadFile(
-      chunk,
-      {
-        indexChunk: index + 1,
-        totalChunks: totalChunks,
-        fileName: fileName,
-        path: path.join('/'),
-        override: overwrite.value
+  try {
+    await uploadFile({
+      file: file.file as File,
+      path: fileStore.currentPathString,
+      onProgress: (progress) => {
+        uploadStatus[fileName].progress = progress
+        onProgress?.({ percent: progress })
       },
-      progress
-    )
+      onSuccess: () => {
+        uploadStatus[fileName].status = 'finished'
+        message.success(`${fileName} 上传成功`)
+        fileStore.fetchFiles()
+        onFinish()
+      },
+      onError: (error: unknown) => {
+        uploadStatus[fileName].status = 'error'
+        uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败'
+        message.error(`${fileName} 上传失败`)
+        onError()
+      }
+    })
+  } catch (error: unknown) {
+    uploadStatus[fileName].status = 'error'
+    uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败，请重试'
+    message.error(`${fileName} 上传失败`)
+    onError()
   }
-
-  // Start the upload process
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * chunkSize.value
-    const end = Math.min(start + chunkSize.value, file.size)
-    const chunk = file.slice(start, end)
-
-    const res = await uploadChunk(chunk, i)
-    if (res.code === 1005) {
-      fileList.value[indexFile].status = 'finished'
-      break
-    }
-  }
-
-  currentUploadSpeed.value = 0
 }
 
-const handleUploadPanClick = () => {
-  drawerShow.value = true
+const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
+  const { file, onFinish, onError, onProgress } = options
+  if (!file) return
+
+  const fileName = file.name
+  const relativePath = (file as any).webkitRelativePath || ''
+  const path = relativePath.split('/').slice(0, -1).join('/')
+  const fullPath = fileStore.currentPathString
+    ? `${fileStore.currentPathString}/${path}`
+    : path
+  
+  uploadStatus[fileName] = {
+    progress: 0,
+    status: 'uploading'
+  }
+
+  try {
+    await uploadFile({
+      file: file.file as File,
+      path: fullPath,
+      onProgress: (progress) => {
+        uploadStatus[fileName].progress = progress
+        onProgress?.({ percent: progress })
+      },
+      onSuccess: () => {
+        uploadStatus[fileName].status = 'finished'
+        message.success(`${fileName} 上传成功`)
+        fileStore.fetchFiles()
+        onFinish()
+      },
+      onError: (error: unknown) => {
+        uploadStatus[fileName].status = 'error'
+        uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败'
+        message.error(`${fileName} 上传失败`)
+        onError()
+      }
+    })
+  } catch (error: unknown) {
+    uploadStatus[fileName].status = 'error'
+    uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败，请重试'
+    message.error(`${fileName} 上传失败`)
+    onError()
+  }
 }
-const handleUploadClick = async () => {
-  if (fileList.value.length === 0) {
-    message.warning('请选择需要上传的文件')
+
+const handleUploadChange = (data: { fileList: UploadFileInfo[] }) => {
+  console.log('Upload change:', data)
+}
+
+// 文件夹操作相关
+const showCreateFolderDialog = ref(false)
+const newFolderName = ref('')
+
+const handleCreateFolder = () => {
+  showCreateFolderDialog.value = true
+}
+
+const handleConfirmCreateFolder = async () => {
+  if (!newFolderName.value.trim()) {
+    message.warning('请输入文件夹名称')
     return
   }
-  uploading.value = true
 
-  const MAX_CONCURRENT_UPLOADS = downloadCount.value // 控制同时上传的最大数量
-  let activeUploads = 0 // 当前正在上传的数量
-
-  // 创建一个队列来存储所有的上传任务
-  const uploadQueue = Array.from({ length: fileList.value.length }, (_, index) => async () => {
-    if (fileList.value[index].status !== 'finished') {
-      await handelUpload(fileList.value[index].file, fileList.value[index].fullPath, index)
-      activeUploads--
-    }
-  })
-
-  // 使用Promise.all来等待所有任务完成
-  await Promise.all(
-    uploadQueue.map(async (task) => {
-      while (activeUploads >= MAX_CONCURRENT_UPLOADS) {
-        // 如果当前正在上传的数量达到最大值，则等待
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
-      activeUploads++
-      await task()
-    })
-  )
-
-  props.getList()
-  message.success('上传成功')
-  uploading.value = false
-  // 清理已完成任务
-  fileList.value = fileList.value.filter((item) => item.status !== 'finished')
+  try {
+    await fileStore.createNewFolder(newFolderName.value.trim())
+    message.success('文件夹创建成功')
+    showCreateFolderDialog.value = false
+    newFolderName.value = ''
+  } catch (error: unknown) {
+    message.error(error instanceof Error ? error.message : '创建文件夹失败')
+  }
 }
 </script>
 
 <style scoped>
-.search-bar {
-  margin-bottom: 10px;
+.header-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  gap: 20px;
+  width: 100%;
+  background-color: var(--n-card-color);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.left-section {
+  flex: 0 0 auto;
+  min-width: 200px;
+  max-width: 30%;
+}
+
+.nav-path {
+  width: 100%;
+  overflow: hidden;
+}
+
+.right-section {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.search-box {
+  flex: 1 1 auto;
+  max-width: 400px;
+  min-width: 200px;
+  margin-right: 16px;
+}
+
+.action-buttons {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.upload-dragger-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+}
+
+.upload-list {
+  margin-top: 16px;
+}
+
+.upload-item {
+  margin-bottom: 12px;
+}
+
+.upload-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.error-message {
+  color: var(--error-color);
+  font-size: 12px;
+  margin-top: 4px;
 }
 </style>
+

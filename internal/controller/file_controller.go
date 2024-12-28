@@ -2,43 +2,45 @@ package controller
 
 import (
 	"FileNest/common/glog"
-	"FileNest/common/response"
 	"FileNest/internal/consts"
 	"FileNest/internal/service"
-	"github.com/gin-gonic/gin"
+	"FileNest/internal/utils/response"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
-	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
-/**
-  @author: XingGao
-  @date: 2024/9/28
-**/
+type FileController struct {
+	fileService service.FileService
+}
 
-type FileController struct{}
-
-func NewFileController() *FileController {
-	return &FileController{}
+func NewFileController(fileService service.FileService) *FileController {
+	return &FileController{
+		fileService: fileService,
+	}
 }
 
 // GetFileList 获取文件列表
 func (h *FileController) GetFileList(ctx *gin.Context) {
 	path := ctx.Query("path")
+	glog.Infof("收到获取文件列表请求，路径: %s", path)
 
-	list, err := service.NewFileService().GetFileList(path)
+	list, err := h.fileService.GetFileList(path)
 	if err != nil {
+		glog.Errorf("获取文件列表失败: %s", err)
 		response.Error(ctx, err.Error())
+		return
 	}
+	glog.Infof("成功获取文件列表，返回 %d 个文件", len(list))
 	response.Success(ctx, list)
 }
 
 // DownloadFile 下载文件
 func (h *FileController) DownloadFile(ctx *gin.Context) {
 	path := ctx.Query("path")
-	absPath, err := service.NewFileService().DownloadFile(path)
+	absPath, err := h.fileService.DownloadFile(path)
 	if err != nil {
 		response.Error(ctx, err.Error())
 		return
@@ -52,15 +54,14 @@ func (h *FileController) DownloadFile(ctx *gin.Context) {
 	ctx.File(absPath)
 }
 
-// CreateFolder 创建文件夹、
+// CreateFolder 创建文件夹
 func (h *FileController) CreateFolder(ctx *gin.Context) {
-	// 获取json path
 	path := ctx.Query("path")
 	if path == "" {
 		response.Error(ctx, "path is empty")
 		return
 	}
-	err := service.NewFileService().CreateDir(path)
+	err := h.fileService.CreateFolder(path)
 	if err != nil {
 		response.Error(ctx, err.Error())
 		return
@@ -68,85 +69,197 @@ func (h *FileController) CreateFolder(ctx *gin.Context) {
 	response.Success(ctx, nil)
 }
 
-// DeleteFile 删除
+// DeleteFile 删除文件
 func (h *FileController) DeleteFile(ctx *gin.Context) {
 	path := ctx.Query("path")
-	if path == "" {
-		response.Error(ctx, "path is empty")
-		return
-	}
-	err := service.NewFileService().DeleteFile(path)
+	glog.Infof("收到删除文件请求，路径: %s", path)
+
+	err := h.fileService.DeleteFile(path)
 	if err != nil {
+		glog.Errorf("删除文件失败: %s", err)
 		response.Error(ctx, err.Error())
 		return
 	}
+
+	glog.Infof("成功删除文件: %s", path)
 	response.Success(ctx, nil)
 }
 
+// UploadFile 上传文件
 func (h *FileController) UploadFile(ctx *gin.Context) {
 	file, err := ctx.FormFile("file")
 	if err != nil {
-		response.Error(ctx, err.Error())
+		glog.Errorf("获取上传文件失败: %s", err)
+		response.Error(ctx, "获取��传文件失败")
 		return
 	}
-	indexChunk := ctx.PostForm("indexChunk")
-	totalChunks := ctx.PostForm("totalChunks")
+
 	fileName := ctx.PostForm("fileName")
+	if fileName == "" {
+		fileName = file.Filename
+	}
+
 	path := ctx.PostForm("path")
-	// 是否覆盖上传
-	override := ctx.PostForm("override")
-	if override == "" {
-		override = "false"
+	glog.Infof("收到文件上传请求，文件名: %s, 路径: %s", fileName, path)
+
+	// 规范化路径
+	path = filepath.Clean(path)
+	if path == "." {
+		path = ""
 	}
-	if fileName == "" || indexChunk == "" || totalChunks == "" {
-		response.Error(ctx, "参数错误")
+
+	// 确保目标目录存在
+	uploadPath := filepath.Join(consts.UploadDir, path)
+	if err := os.MkdirAll(uploadPath, os.ModePerm); err != nil {
+		glog.Errorf("创建目标目录失败: %s, 路径: %s", err, uploadPath)
+		response.Error(ctx, "创建目标目录失败")
 		return
 	}
 
-	intIndexChunk, _ := strconv.Atoi(indexChunk)
-	intTotalChunks, _ := strconv.Atoi(totalChunks)
-	overrideBool, _ := strconv.ParseBool(override)
-	// 跳过重复上传
-	if intIndexChunk == intTotalChunks && !overrideBool {
-		// 检查文件是否存在
-		filePath := filepath.Join(consts.UploadDir, path, fileName)
-		if _, err = os.Stat(filePath); err == nil {
-			response.NewResponseModel(ctx, 1005, "文件已存在", nil)
-			return
-		}
+	// 检查文件是否已存在
+	filePath := filepath.Join(uploadPath, fileName)
+	if _, err = os.Stat(filePath); err == nil {
+		glog.Errorf("文件已存在: %s", filePath)
+		response.Error(ctx, "文件已存在")
+		return
+	} else if !os.IsNotExist(err) {
+		glog.Errorf("检查文件状态失败: %s", err)
+		response.Error(ctx, "检查文件状态失败")
+		return
 	}
 
-	err = os.MkdirAll(consts.TempDir, os.ModePerm)
+	// 检查目标目录是否有写入权限
+	if err := h.checkDirectoryWritePermission(uploadPath); err != nil {
+		glog.Errorf("目标目录无写入权限: %s, 路径: %s", err, uploadPath)
+		response.Error(ctx, "目标目录无写入权限")
+		return
+	}
+
+	// 保存文件
+	if err = ctx.SaveUploadedFile(file, filePath); err != nil {
+		glog.Errorf("保存文件失败: %s, 路径: %s", err, filePath)
+		response.Error(ctx, "保存文件失败")
+		return
+	}
+
+	// 设置文件权限
+	if err = os.Chmod(filePath, 0644); err != nil {
+		glog.Warnf("设置文件权限失败: %s, 路径: %s", err, filePath)
+	}
+
+	glog.Infof("文件上传成功: %s", filePath)
+	response.Success(ctx, map[string]string{
+		"path": filepath.Join(path, fileName),
+	})
+}
+
+// checkDirectoryWritePermission 检查目录是否有写入权限
+func (h *FileController) checkDirectoryWritePermission(dir string) error {
+	// 创建临时文件
+	tempFile := filepath.Join(dir, ".write_test")
+	f, err := os.Create(tempFile)
 	if err != nil {
-		glog.Errorf("unable to create temp directory: %s", err)
-		return
+		return err
 	}
-	name := filepath.Base(fileName)
-	tempFileName := name + "_chunk_" + strconv.Itoa(intIndexChunk)
-	chunkPath := filepath.Join(consts.TempDir, tempFileName)
+	f.Close()
 
-	if err = ctx.SaveUploadedFile(file, chunkPath); err != nil {
+	// 删除临时文件
+	return os.Remove(tempFile)
+}
+
+// GetFileStats 获取文件统计信息
+func (h *FileController) GetFileStats(ctx *gin.Context) {
+	path := ctx.Query("path")
+	glog.Infof("收到获取文件统计信息请求，路径: %s", path)
+
+	stats, err := h.fileService.GetFileStats(path)
+	if err != nil {
+		glog.Errorf("获取文件统计信息失败: %s", err)
 		response.Error(ctx, err.Error())
 		return
 	}
 
-	if intIndexChunk == intTotalChunks {
-		err = service.NewFileService().
-			UploadFile(path, fileName, intTotalChunks)
-		if err != nil {
-			response.Error(ctx, err.Error())
-			return
-		}
+	glog.Infof("成功获取文件统计信息: %+v", stats)
+	response.Success(ctx, stats)
+}
 
-		// 删除临时文件
-		go func() {
-			time.Sleep(5 * time.Second)
-			e := os.RemoveAll(consts.TempDir)
-			if e != nil {
-				glog.Errorf("delete temp file error: %s", e)
-			}
-			glog.Infof("delete temp file success")
-		}()
+// SearchFiles 搜索文件
+func (h *FileController) SearchFiles(ctx *gin.Context) {
+	keyword := ctx.Query("keyword")
+	glog.Infof("收到搜索文件请求，关键词: %s", keyword)
+
+	if keyword == "" {
+		glog.Errorf("搜索关键词为空")
+		response.Error(ctx, "搜索关键词不能为空")
+		return
 	}
+
+	files, err := h.fileService.SearchFiles(keyword)
+	if err != nil {
+		glog.Errorf("搜索文件失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Infof("搜索完成，找到 %d 个匹配文件", len(files))
+	response.Success(ctx, files)
+}
+
+// AddFavorite 添加收藏
+func (h *FileController) AddFavorite(ctx *gin.Context) {
+	path := ctx.Query("path")
+	glog.Infof("收到添加收藏请求，路径: %s", path)
+
+	if path == "" {
+		glog.Errorf("文件路径为空")
+		response.Error(ctx, "文件路径不能为空")
+		return
+	}
+
+	err := h.fileService.AddFavorite(path)
+	if err != nil {
+		glog.Errorf("添加收藏失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Infof("添加收藏成功: %s", path)
 	response.Success(ctx, nil)
+}
+
+// RemoveFavorite 取消收藏
+func (h *FileController) RemoveFavorite(ctx *gin.Context) {
+	path := ctx.Query("path")
+	glog.Infof("收到取消收藏请求，路径: %s", path)
+
+	if path == "" {
+		glog.Errorf("文件路径为空")
+		response.Error(ctx, "文件路径不能为空")
+		return
+	}
+
+	err := h.fileService.RemoveFavorite(path)
+	if err != nil {
+		glog.Errorf("取消收藏失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Infof("取消收藏成功: %s", path)
+	response.Success(ctx, nil)
+}
+
+// GetFavorites 获取收藏列表
+func (h *FileController) GetFavorites(ctx *gin.Context) {
+	glog.Info("收到获取收藏列表请求")
+
+	favorites, err := h.fileService.GetFavorites()
+	if err != nil {
+		glog.Errorf("获取收藏列表失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Infof("获取收藏列表成功，共 %d 条记录", len(favorites))
+	response.Success(ctx, favorites)
 }

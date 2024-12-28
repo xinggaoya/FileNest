@@ -17,6 +17,17 @@ type FileService interface {
 	DeleteFile(path string) error
 	// DownloadFile 下载
 	DownloadFile(path string) (string, error)
+	CreateFolder(path string) error
+	RemoveFile(path string) error
+	GetFileStats(path string) (*model.FileStats, error)
+	// SearchFiles 搜索文件
+	SearchFiles(keyword string) ([]model.FileInfo, error)
+	// AddFavorite 添加收藏
+	AddFavorite(filePath string) error
+	// RemoveFavorite 取消收藏
+	RemoveFavorite(filePath string) error
+	// GetFavorites 获取收藏列表
+	GetFavorites() ([]model.Favorite, error)
 }
 
 func NewFileService() FileService {

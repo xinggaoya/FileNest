@@ -3,10 +3,12 @@ package router
 import (
 	"FileNest/common/glog"
 	"FileNest/internal/controller"
+	"FileNest/internal/service"
+	"time"
+
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
-	"time"
 )
 
 /**
@@ -21,16 +23,21 @@ func Install(app *gin.Engine) {
 
 	index := app.Group("/")
 
-	helloWordController := controller.NewFileController()
+	fileController := controller.NewFileController(service.NewFileService())
 
 	api := index.Group("/api")
 
 	file := api.Group("/file")
-	file.GET("/list", helloWordController.GetFileList)
-	file.POST("/create", helloWordController.CreateFolder)
-	file.DELETE("/delete", helloWordController.DeleteFile)
-	file.POST("/upload", helloWordController.UploadFile)
-	file.GET("/download", helloWordController.DownloadFile)
+	file.GET("/list", fileController.GetFileList)
+	file.GET("/stats", fileController.GetFileStats)
+	file.GET("/search", fileController.SearchFiles)
+	file.GET("/favorites", fileController.GetFavorites)
+	file.POST("/create-folder", fileController.CreateFolder)
+	file.POST("/upload", fileController.UploadFile)
+	file.POST("/favorite", fileController.AddFavorite)
+	file.GET("/download", fileController.DownloadFile)
+	file.DELETE("/delete", fileController.DeleteFile)
+	file.DELETE("/favorite", fileController.RemoveFavorite)
 }
 
 // RegisterGlobalMiddleware 注册全局中间件

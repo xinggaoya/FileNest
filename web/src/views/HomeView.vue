@@ -1,230 +1,197 @@
 <template>
-  <div class="file-manager" style="height: calc(100% - 45px)">
-    <n-card class="home-max-card" content-style="height: calc(100% - 120px)">
-      <template v-slot:header>
-        <n-flex size="small">
-          <n-avatar :src="Logo" :size="40" />
-          <span style="line-height: 40px">File Manager</span>
-        </n-flex>
-      </template>
-      <template v-slot:default>
-        <HomeHeader v-model:breadcrumb="path" :get-list="getList" />
+  <div class="home">
+    <!-- 顶部统计和操作区域 -->
+    <div class="top-section">
+      <div class="stats-container">
+        <file-stats />
+      </div>
+      
+      <div class="action-group">
+        <n-button-group>
+          <n-button quaternary size="large" @click="fileStore.toggleViewMode">
+            <template #icon>
+              <n-icon>
+                <appstore-outlined v-if="fileStore.viewMode === 'grid'" />
+                <unordered-list-outlined v-else />
+              </n-icon>
+            </template>
+            {{ fileStore.viewMode === 'grid' ? '列表视图' : '网格视图' }}
+          </n-button>
+          <n-button quaternary size="large" @click="fileStore.fetchFiles">
+            <template #icon>
+              <n-icon><reload-outlined /></n-icon>
+            </template>
+            刷新
+          </n-button>
+        </n-button-group>
+      </div>
+    </div>
 
-        <div class="file-list" style="height: calc(100% - 55px)">
-          <n-scrollbar>
-            <table style="font-size: 16px; width: 100%">
-              <thead>
-                <tr style="text-align: left">
-                  <th width="240">名称</th>
-                  <th width="100">大小</th>
-                  <th width="150">修改时间</th>
-                </tr>
-              </thead>
-              <transition-group name="list" tag="tbody">
-                <tr
-                  v-for="(file, index) in files"
-                  :key="index"
-                  @click="handleFileClick(file)"
-                  @contextmenu="(e) => handleContextmenu(e, file)"
-                  class="file-item"
-                >
-                  <td>
-                    <n-flex>
-                      <n-icon :size="20" :component="getFileIcon(file)" />
-                      <n-ellipsis style="max-width: 240px">{{ file.fileName }}</n-ellipsis>
-                    </n-flex>
-                  </td>
-                  <td>{{ (file.fileSize / 1024 / 1024).toFixed(2) }} MB</td>
-                  <td>
-                    {{ file.modTime }}
-                  </td>
-                </tr>
-              </transition-group>
-            </table>
-          </n-scrollbar>
+    <!-- 主要内容区域 -->
+    <div class="content-section">
+      <n-card class="content-card">
+        <!-- 头部导航和搜索 -->
+        <div class="content-header">
+          <home-header />
         </div>
-        <n-dropdown
-          placement="bottom-start"
-          trigger="manual"
-          :options="options"
-          :x="x"
-          :y="y"
-          :show="showDropdown"
-          :on-clickoutside="onClickoutside"
-          @select="handleSelect"
-        />
-      </template>
-    </n-card>
+        
+        <!-- 文件列表区域 -->
+        <div class="content-body">
+          <n-empty v-if="fileStore.sortedFiles.length === 0" description="暂无文件" />
+          <template v-else>
+            <div class="file-list" :class="{ 'grid-view': fileStore.viewMode === 'grid' }">
+              <file-item
+                v-for="file in fileStore.sortedFiles"
+                :key="file.filePath"
+                :file="file"
+              />
+            </div>
+          </template>
+        </div>
+      </n-card>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, h, nextTick } from 'vue'
-import {
-  FileExcelOutlined,
-  FileTextOutlined,
-  FileWordOutlined,
-  FolderOpenTwotone
-} from '@vicons/antd'
-import { ImageOutline, VideocamOutline } from '@vicons/ionicons5'
-import Logo from '@/assets/logo.png'
+import { onMounted } from 'vue'
 import HomeHeader from '@/components/home/HomeHeader.vue'
-import { deleteFile, getFileList } from '@/api/file/file'
-import { type DropdownOption, useMessage, useDialog } from 'naive-ui'
+import FileItem from '@/components/file/FileItem.vue'
+import FileStats from '@/components/home/FileStats.vue'
+import { useFileStore } from '@/stores/file'
+import {
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  ReloadOutlined
+} from '@vicons/antd'
 
-const path = ref(['首页'])
-const files = ref<any>([])
-const showDropdown = ref(false)
-// 选中的文件
-const selectFile = ref()
-const x = ref(0)
-const y = ref(0)
-const message = useMessage()
-const dialog = useDialog()
-const options: DropdownOption[] = [
-  {
-    label: '下载',
-    key: 'download'
-  },
-  {
-    label: () => h('span', { style: { color: 'red' } }, '删除'),
-    key: 'delete'
-  }
-]
-
-const getList = () => {
-  // 拼接路径
-  const list = [...path.value]
-  list[0] = '/'
-  let pathStr = list.join('/')
-  getFileList({
-    path: pathStr
-  }).then((res: any) => {
-    files.value = res.data
-  })
-}
-
-// 通过文件类型显示图标
-const getFileIcon = (file: any) => {
-  if (file.isDir) {
-    return FolderOpenTwotone
-  }
-  switch (file.fileType) {
-    case '.png':
-      return ImageOutline
-    case '.jpg':
-      return ImageOutline
-    case '.mp4':
-      return VideocamOutline
-    case '.docx':
-      return FileWordOutlined
-    case '.xlsx':
-      return FileExcelOutlined
-    case '.xls':
-      return FileExcelOutlined
-    default:
-      return FileTextOutlined
-  }
-}
-
-const handleContextmenu = (e: any, file: any) => {
-  e.preventDefault()
-  showDropdown.value = file
-  selectFile.value = file
-  nextTick().then(() => {
-    showDropdown.value = true
-    x.value = e.clientX
-    y.value = e.clientY
-  })
-}
-
-const handleSelect = (key: string) => {
-  showDropdown.value = false
-  if (key === 'download') {
-    // a 标签
-    const a = document.createElement('a')
-    a.href = '/api/file/download?path=' + selectFile.value.filePath
-    a.download = selectFile.value.fileName
-    a.click()
-    a.remove()
-    return
-  }
-  if (key === 'delete') {
-    dialog.success({
-      title: '提示',
-      content: '请再次确认删除该文件？',
-      positiveText: '确定',
-      negativeText: '取消',
-      maskClosable: false,
-      onPositiveClick: () => {
-        deleteFile(selectFile.value.filePath).then((res: any) => {
-          message.success('删除成功')
-          getList()
-        })
-      }
-    })
-    return
-  }
-}
-const onClickoutside = () => {
-  showDropdown.value = false
-}
-
-const handleFileClick = (file: any) => {
-  if (file.isDir) {
-    path.value.push(file.fileName)
-    getList()
-  }
-}
+const fileStore = useFileStore()
 
 onMounted(() => {
-  getList()
+  fileStore.fetchFiles()
 })
 </script>
 
 <style scoped>
-.file-manager {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+.home {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--n-color-background);
+  padding: 16px;
+  gap: 16px;
+  box-sizing: border-box;
 }
 
-.home-max-card {
-  border-radius: 0.7rem;
+.top-section {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.stats-container {
+  flex: 1;
+  min-width: 300px;
+}
+
+.action-group {
+  flex: 0 0 auto;
+}
+
+.content-section {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+:deep(.content-card) {
   height: 100%;
-  box-shadow:
-    0 10px 15px -3px rgb(0 0 0 / 0.09),
-    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+:deep(.n-card__content) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+}
+
+.content-header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--n-border-color);
+  padding: 16px;
+}
+
+.content-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
 }
 
 .file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: scroll;
+  padding: 16px;
 }
 
-.file-item {
-  border-radius: 5px;
-  font-size: 16px;
-  cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    transform 0.3s ease;
+.file-list.grid-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
 }
 
-.file-item:hover {
-  background-color: #b9d5fd;
-  transform: scale(1.02);
+/* 滚动条样式 */
+.file-list::-webkit-scrollbar {
+  width: 8px;
+  background-color: transparent;
 }
 
-.list-enter-active,
-.list-leave-active {
-  transition: all 0.5s ease;
+.file-list::-webkit-scrollbar-track {
+  background: var(--n-color-background);
+  border-radius: 4px;
 }
 
-.list-enter-from,
-.list-leave-to {
-  opacity: 0;
-  transform: translateX(30px);
+.file-list::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 2px solid var(--n-color-background);
+}
+
+.file-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .home {
+    padding: 8px;
+  }
+
+  .top-section {
+    flex-direction: column;
+  }
+
+  .stats-container {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .action-group {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .file-list.grid-view {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
 }
 </style>
