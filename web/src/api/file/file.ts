@@ -1,6 +1,5 @@
-import { get, post, del } from '@/utils/request'
+import { get, post, del, download } from '@/utils/request'
 import type { AxiosProgressEvent } from 'axios'
-import { isAxiosError } from 'axios'
 
 export interface FileInfo {
   fileName: string
@@ -61,8 +60,8 @@ export interface UploadFileParams {
   onError?: (error: string) => void
 }
 
-export const getFileList = (params: GetFileListParams) => {
-  return get<FileInfo[]>('/file/list', params)
+export const getFileList = (path: string) => {
+  return get<FileInfo[]>('/file/list', { path })
 }
 
 export const createFolder = (path: string) => {
@@ -74,7 +73,7 @@ export const deleteFile = (path: string) => {
 }
 
 export const downloadFile = (path: string) => {
-  return get('/file/download', { path }, { responseType: 'blob' })
+  return download('/file/download', { path })
 }
 
 /**
@@ -97,7 +96,7 @@ export const uploadFile = async ({
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      onUploadProgress: (progressEvent) => {
+      onUploadProgress: (progressEvent: AxiosProgressEvent) => {
         if (progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
           onProgress?.(progress)
@@ -105,12 +104,8 @@ export const uploadFile = async ({
       }
     })
     onSuccess?.()
-  } catch (error) {
-    if (isAxiosError(error)) {
-      onError?.(error.response?.data?.message || '上传失败')
-    } else {
-      onError?.('上传失败')
-    }
+  } catch (error: any) {
+    onError?.(error.response?.data?.message || '上传失败')
   }
 }
 
@@ -127,8 +122,8 @@ export const getFileStats = (params: GetFileStatsParams) => {
   return get<FileStats>('/file/stats', params)
 }
 
-export const searchFiles = (params: SearchFilesParams) => {
-  return get<FileInfo[]>('/file/search', params)
+export const searchFiles = (keyword: string) => {
+  return get<FileInfo[]>('/file/search', { keyword })
 }
 
 export const addFavorite = (path: string) => {

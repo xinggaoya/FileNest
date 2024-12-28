@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { FileInfo } from '@/types/file'
 import { createDiscreteApi } from 'naive-ui'
+import { 
+  getFileList, 
+  createFolder, 
+  downloadFile, 
+  deleteFile, 
+  searchFiles,
+  type FileInfo 
+} from '@/api/file/file'
 
 const { message } = createDiscreteApi(['message'])
 
@@ -44,15 +51,8 @@ export const useFileStore = defineStore('file', () => {
   const fetchFiles = async () => {
     try {
       isLoading.value = true
-      const response = await fetch(`/api/file/list?path=${currentPathString.value}`)
-      if (!response.ok) {
-        throw new Error('获取文件列表失败')
-      }
-      const data = await response.json()
-      if (!data || !data.data) {
-        throw new Error('服务器返回数据格式错误')
-      }
-      files.value = Array.isArray(data.data) ? data.data : []
+      const { data } = await getFileList(currentPathString.value)
+      files.value = data || []
     } catch (error) {
       message.error(error instanceof Error ? error.message : '获取文件列表失败')
       files.value = [] // 出错时清空文件列表
@@ -62,27 +62,28 @@ export const useFileStore = defineStore('file', () => {
   }
 
   // 进入目录
-  const enterDirectory = (path: string) => {
+  const enterDirectory = async (path: string) => {
     if (path === '/') {
       currentPath.value = []
     } else {
-      currentPath.value = path.split('/')
+      // 如果是绝对路径（包含完整路径），则直接解析
+      if (path.includes('/')) {
+        currentPath.value = path.split('/').filter(Boolean)
+      } else {
+        // 如果是单个目录名，则追加到当前路径
+        currentPath.value.push(path)
+      }
     }
-    fetchFiles()
+    await fetchFiles()
   }
 
   // 创建文件夹
   const createNewFolder = async (name: string) => {
     try {
       const path = currentPathString.value ? `${currentPathString.value}/${name}` : name
-      const response = await fetch(`/api/file/create-folder?path=${path}`, {
-        method: 'POST'
-      })
-      if (!response.ok) {
-        throw new Error('创建文件夹失败')
-      }
+      await createFolder(path)
       message.success('创建文件夹成功')
-      fetchFiles()
+      await fetchFiles()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '创建文件夹失败')
       throw error
@@ -90,59 +91,58 @@ export const useFileStore = defineStore('file', () => {
   }
 
   // 下载文件
-  const downloadFile = async (path: string) => {
+  const downloadFileAction = async (path: string) => {
     try {
-      const response = await fetch(`/api/file/download?path=${path}`)
-      if (!response.ok) {
-        throw new Error('下载文件失败')
+      message.loading('正在下载...', { duration: 0 })
+      const blob = await downloadFile(path)
+      
+      if (!(blob instanceof Blob)) {
+        throw new Error('下载失败，返回数据格式错误')
       }
-      const blob = await response.blob()
+
+      // 从路径中获取文件名
+      const fileName = path.split('/').pop() || 'download'
+
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
+      a.style.display = 'none'
       a.href = url
-      a.download = path.split('/').pop() || 'download'
+      a.download = fileName
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      
       message.success('下载成功')
     } catch (error) {
+      console.error('下载错误:', error)
       message.error(error instanceof Error ? error.message : '下载文件失败')
+    } finally {
+      message.destroyAll() // 清除所有消息，包括 loading
     }
   }
 
   // 删除文件
-  const deleteFile = async (path: string) => {
+  const deleteFileAction = async (path: string) => {
     try {
-      const response = await fetch(`/api/file/delete?path=${path}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) {
-        throw new Error('删除文件失败')
-      }
+      await deleteFile(path)
       message.success('删除成功')
-      fetchFiles()
+      await fetchFiles()
     } catch (error) {
       message.error(error instanceof Error ? error.message : '删除文件失败')
+      throw error
     }
   }
 
   // 删除文件（别名，为了保持 API 一致性）
-  const removeFile = deleteFile
+  const removeFile = deleteFileAction
 
   // 搜索文件
   const searchFile = async (keyword: string) => {
     try {
       isLoading.value = true
-      const response = await fetch(`/api/file/search?keyword=${keyword}`)
-      if (!response.ok) {
-        throw new Error('搜索文件失败')
-      }
-      const data = await response.json()
-      if (!data || !data.data) {
-        throw new Error('服务器返回数据格式错误')
-      }
-      files.value = Array.isArray(data.data) ? data.data : []
+      const { data } = await searchFiles(keyword)
+      files.value = data || []
     } catch (error) {
       message.error(error instanceof Error ? error.message : '搜索文件失败')
       files.value = [] // 出错时清空文件列表
@@ -151,7 +151,7 @@ export const useFileStore = defineStore('file', () => {
     }
   }
 
-  // 返回上级目录
+  // 返回上目录
   const goBack = async () => {
     if (currentPath.value.length > 0) {
       currentPath.value.pop()
@@ -169,8 +169,8 @@ export const useFileStore = defineStore('file', () => {
     fetchFiles,
     enterDirectory,
     createNewFolder,
-    downloadFile,
-    deleteFile,
+    downloadFile: downloadFileAction,
+    deleteFile: deleteFileAction,
     removeFile,
     toggleViewMode,
     searchFile,

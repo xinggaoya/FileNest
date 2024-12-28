@@ -89,14 +89,19 @@
   </div>
 
   <!-- 预览弹窗 -->
-  <n-modal v-model:show="showPreview" preset="card" style="max-width: 90vw; max-height: 90vh">
-    <template #header>
-      <div class="preview-header">
-        <span>{{ file.fileName }}</span>
-      </div>
-    </template>
+  <n-modal 
+    v-model:show="showPreview" 
+    preset="card" 
+    style="max-width: 90vw; max-height: 90vh"
+    :title="file.fileName"
+  >
     <div class="preview-content">
-      <img v-if="isImage" :src="previewUrl" alt="预览图片" />
+      <img 
+        v-if="isImage" 
+        :src="previewUrl" 
+        :alt="file.fileName"
+        style="max-width: 100%; max-height: 80vh; object-fit: contain;"
+      />
       <pre v-else-if="isText" v-text="previewContent" />
       <div v-else class="preview-unsupported">
         暂不支持预览该类型文件
@@ -123,7 +128,7 @@ import {
 } from '@vicons/antd'
 import { createDiscreteApi } from 'naive-ui'
 
-const { message } = createDiscreteApi(['message'])
+const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 const fileStore = useFileStore()
 
 const props = defineProps<{
@@ -211,14 +216,20 @@ const handlePreview = async () => {
 // 处理下载
 const handleDownload = () => {
   if (props.file.isDir) return
-  window.open(previewUrl.value, '_blank')
+  fileStore.downloadFile(props.file.filePath)
 }
 
 // 处理删除
 const handleDelete = async () => {
-  if (confirm('确定要删除该文件吗？')) {
-    await fileStore.removeFile(props.file.filePath)
-  }
+  dialog.warning({
+    title: '确认删除',
+    content: `确定要删除 ${props.file.fileName} 吗？`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await fileStore.removeFile(props.file.filePath)
+    }
+  })
 }
 </script>
 

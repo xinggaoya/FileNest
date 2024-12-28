@@ -174,4 +174,41 @@ export async function del<T = any>(
     }
 }
 
+// 下载文件专用方法
+export const download = async (url: string, params: Record<string, any>) => {
+    try {
+        // 创建一个新的 axios 实例，专门用于下载
+        const downloadInstance = axios.create({
+            baseURL: '/api',
+            timeout: 30000,
+            responseType: 'blob'
+        })
+
+        const response = await downloadInstance.get(url, {
+            params,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+
+        if (response.data instanceof Blob) {
+            return response.data
+        } else {
+            throw new Error('下载失败')
+        }
+    } catch (error: any) {
+        // 如果响应是 Blob 类型但包含错误信息，需要特殊处理
+        if (error.response?.data instanceof Blob) {
+            const text = await error.response.data.text()
+            try {
+                const errorData = JSON.parse(text)
+                throw new Error(errorData.message || '下载失败')
+            } catch {
+                throw new Error('下载失败')
+            }
+        }
+        throw error
+    }
+}
+
 export default request 

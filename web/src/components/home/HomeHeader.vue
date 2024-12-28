@@ -3,13 +3,17 @@
     <div class="left-section">
       <div class="nav-path">
         <n-breadcrumb>
-          <n-breadcrumb-item @click="fileStore.enterDirectory('/')">
+          <n-breadcrumb-item @click="handleRootClick">
             <n-icon><folder-outlined /></n-icon>
-            根目录
+            <n-spin size="small" v-if="fileStore.isLoading && !fileStore.currentPath.length" />
+            <template v-else>根目录</template>
           </n-breadcrumb-item>
           <template v-for="(path, index) in fileStore.currentPath" :key="index">
             <n-icon><right-outlined /></n-icon>
-            <n-breadcrumb-item>{{ path }}</n-breadcrumb-item>
+            <n-breadcrumb-item @click="handleBreadcrumbClick(index)">
+              <n-spin size="small" v-if="fileStore.isLoading && index === loadingIndex" />
+              <template v-else>{{ path }}</template>
+            </n-breadcrumb-item>
           </template>
         </n-breadcrumb>
       </div>
@@ -17,28 +21,28 @@
 
     <!-- 右侧搜索框和操作按钮 -->
     <div class="right-section">
-      <!-- 搜索框 -->
-      <div class="search-box">
-        <n-input-group>
-          <n-input
-            v-model:value="searchKeyword"
-            type="text"
-            placeholder="搜索文件..."
-            @keydown.enter="handleSearch"
-          >
-            <template #prefix>
-              <n-icon><search-outlined /></n-icon>
-            </template>
-          </n-input>
-          <n-button type="primary" ghost @click="handleSearch">
-            搜索
-          </n-button>
-        </n-input-group>
-      </div>
+      <div class="search-and-actions">
+        <!-- 搜索框 -->
+        <div class="search-box">
+          <n-input-group>
+            <n-input
+              v-model:value="searchKeyword"
+              type="text"
+              placeholder="搜索文件..."
+              @keydown.enter="handleSearch"
+            >
+              <template #prefix>
+                <n-icon><search-outlined /></n-icon>
+              </template>
+            </n-input>
+            <n-button type="primary" ghost @click="handleSearch">
+              搜索
+            </n-button>
+          </n-input-group>
+        </div>
 
-      <!-- 操作按钮 -->
-      <div class="action-buttons">
-        <n-space>
+        <!-- 操作按钮 -->
+        <div class="action-buttons">
           <n-button type="primary" @click="showUploadDrawer = true">
             <template #icon>
               <n-icon><upload-outlined /></n-icon>
@@ -51,7 +55,7 @@
             </template>
             新建文件夹
           </n-button>
-        </n-space>
+        </div>
       </div>
     </div>
   </div>
@@ -64,61 +68,133 @@
     title="上传文件"
   >
     <n-drawer-content>
-      <n-space vertical>
-        <n-upload
-          :custom-request="handleUpload"
-          :show-file-list="false"
-          :directory="false"
-          @change="handleUploadChange"
-        >
-          <n-upload-dragger>
-            <div class="upload-dragger-content">
-              <n-icon size="48" depth="3">
-                <upload-outlined />
-              </n-icon>
-              <n-text>点击或拖拽文件到此处上传</n-text>
+      <n-tabs type="segment" class="upload-tabs">
+        <n-tab-pane name="upload" tab="上传列表">
+          <!-- 上传区域 -->
+          <n-space vertical>
+            <div class="upload-area">
+              <n-upload
+                :custom-request="handleUpload"
+                :show-file-list="false"
+                :directory="false"
+                :max-size="1024 * 1024 * 500"
+                @change="handleUploadChange"
+                @before-upload="handleBeforeUpload"
+              >
+                <n-upload-dragger>
+                  <div class="upload-dragger-content">
+                    <n-icon size="48" depth="3">
+                      <upload-outlined />
+                    </n-icon>
+                    <n-text>点击或拖拽文件到此处上传</n-text>
+                    <div class="upload-hint">
+                      <p>支持单个文件最大 500MB</p>
+                      <p>支持多文件同时上传</p>
+                    </div>
+                  </div>
+                </n-upload-dragger>
+              </n-upload>
             </div>
-          </n-upload-dragger>
-        </n-upload>
-        <n-divider>或者</n-divider>
-        <n-upload
-          :custom-request="handleFolderUpload"
-          :show-file-list="false"
-          directory
-          @change="handleUploadChange"
-        >
-          <n-upload-dragger>
-            <div class="upload-dragger-content">
-              <n-icon size="48" depth="3">
-                <folder-add-outlined />
-              </n-icon>
-              <n-text>点击或拖拽文件夹到此处上传</n-text>
-            </div>
-          </n-upload-dragger>
-        </n-upload>
 
-        <!-- 上传进度列表 -->
-        <div class="upload-list" v-if="Object.keys(uploadStatus).length > 0">
-          <div class="upload-item" v-for="(status, key) in uploadStatus" :key="key">
-            <div class="upload-info">
-              <span class="filename">{{ key }}</span>
-              <span class="status">
-                {{ status.status === 'uploading' ? '上传中...' :
-                   status.status === 'finished' ? '上传完成' :
-                   '上传失败' }}
-              </span>
+            <!-- 上传进度列表 -->
+            <div class="upload-list" v-if="Object.keys(uploadStatus).length > 0">
+              <div class="upload-list-header">
+                <span>文件上传列表</span>
+                <n-button text type="primary" @click="clearFinishedUploads">
+                  清除已完成
+                </n-button>
+              </div>
+              <div class="upload-items">
+                <div 
+                  class="upload-item" 
+                  v-for="(status, key) in uploadStatus" 
+                  :key="key"
+                  :class="{ 
+                    'is-finished': status.status === 'finished',
+                    'is-error': status.status === 'error'
+                  }"
+                >
+                  <div class="upload-item-header">
+                    <n-icon size="20">
+                      <file-outlined />
+                    </n-icon>
+                    <span class="filename" :title="key">{{ key }}</span>
+                    <span class="filesize">{{ formatFileSize(status.size || 0) }}</span>
+                  </div>
+                  
+                  <div class="upload-item-body">
+                    <div class="progress-info">
+                      <span class="status">
+                        {{ 
+                          status.status === 'uploading' ? 
+                            `上传中 - ${formatFileSize(status.speed || 0)}/s` :
+                          status.status === 'finished' ? '上传完成' :
+                          status.status === 'waiting' ? '等待上传' :
+                          '上传失败'
+                        }}
+                      </span>
+                      <span class="progress-text">{{ status.progress }}%</span>
+                    </div>
+                    <n-progress
+                      type="line"
+                      :percentage="status.progress"
+                      :status="status.status === 'error' ? 'error' :
+                              status.status === 'finished' ? 'success' : 'info'"
+                      :show-indicator="false"
+                      :height="2"
+                    />
+                  </div>
+
+                  <div class="upload-item-footer">
+                    <div class="error-message" v-if="status.message">{{ status.message }}</div>
+                    <div class="actions">
+                      <n-button 
+                        v-if="status.status === 'error'" 
+                        text 
+                        type="primary"
+                        @click="retryUpload(key)"
+                      >
+                        重试
+                      </n-button>
+                      <n-button 
+                        text 
+                        type="error"
+                        @click="removeUpload(key)"
+                      >
+                        移除
+                      </n-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <n-progress
-              type="line"
-              :percentage="status.progress"
-              :status="status.status === 'error' ? 'error' :
-                      status.status === 'finished' ? 'success' : 'info'"
-              :show-indicator="true"
-            />
-            <div class="error-message" v-if="status.message">{{ status.message }}</div>
-          </div>
-        </div>
-      </n-space>
+          </n-space>
+        </n-tab-pane>
+
+        <n-tab-pane name="folder" tab="文件夹上传">
+          <n-upload
+            :custom-request="handleFolderUpload"
+            :show-file-list="false"
+            directory
+            :max-size="1024 * 1024 * 500"
+            @change="handleUploadChange"
+            @before-upload="handleBeforeUpload"
+          >
+            <n-upload-dragger>
+              <div class="upload-dragger-content">
+                <n-icon size="48" depth="3">
+                  <folder-add-outlined />
+                </n-icon>
+                <n-text>点击或拖拽文件夹到此处上传</n-text>
+                <div class="upload-hint">
+                  <p>支持文件夹及其子文件夹的上传</p>
+                  <p>自动保持文件夹结构</p>
+                </div>
+              </div>
+            </n-upload-dragger>
+          </n-upload>
+        </n-tab-pane>
+      </n-tabs>
     </n-drawer-content>
   </n-drawer>
 
@@ -148,7 +224,8 @@ import {
   FolderAddOutlined,
   UploadOutlined,
   RightOutlined,
-  SearchOutlined
+  SearchOutlined,
+  FileOutlined
 } from '@vicons/antd'
 import { uploadFile } from '@/api/file/file'
 import { useFileStore } from '@/stores/file'
@@ -170,52 +247,71 @@ const handleSearch = () => {
 const showUploadDrawer = ref(false)
 interface UploadStatus {
   progress: number
-  status: 'uploading' | 'finished' | 'error'
+  status: 'waiting' | 'uploading' | 'finished' | 'error'
   message?: string
+  size?: number
+  speed?: number
+  file?: File
+  startTime?: number
 }
 
 const uploadStatus = reactive<Record<string, UploadStatus>>({})
+const uploadQueue = ref<string[]>([])
+const maxConcurrentUploads = 3
+let activeUploads = 0
 
-const handleUpload = async ({ file, onFinish, onError, onProgress }: UploadCustomRequestOptions) => {
-  if (!file) return
-  
+// 处理上传前的检查
+const handleBeforeUpload = async (data: { file: UploadFileInfo }) => {
+  const file = data.file.file as File
   const fileName = file.name
-  uploadStatus[fileName] = {
-    progress: 0,
-    status: 'uploading'
+  
+  // 检查文件是否已存在
+  if (uploadStatus[fileName]) {
+    message.warning(`文件 ${fileName} 已在上传列表中`)
+    return false
   }
 
-  try {
-    await uploadFile({
-      file: file.file as File,
-      path: fileStore.currentPathString,
-      onProgress: (progress) => {
-        uploadStatus[fileName].progress = progress
-        onProgress?.({ percent: progress })
-      },
-      onSuccess: () => {
-        uploadStatus[fileName].status = 'finished'
-        message.success(`${fileName} 上传成功`)
-        fileStore.fetchFiles()
-        onFinish()
-      },
-      onError: (error: unknown) => {
-        uploadStatus[fileName].status = 'error'
-        uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败'
-        message.error(`${fileName} 上传失败`)
-        onError()
-      }
-    })
-  } catch (error: unknown) {
-    uploadStatus[fileName].status = 'error'
-    uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败，请重试'
-    message.error(`${fileName} 上传失败`)
-    onError()
+  // 添加到上传状态和队列
+  uploadStatus[fileName] = {
+    progress: 0,
+    status: 'waiting',
+    size: file.size,
+    file: file
+  }
+  uploadQueue.value.push(fileName)
+  
+  // 尝试开始上传
+  processUploadQueue()
+  
+  // 返回 false 阻止默认上传行为
+  return false
+}
+
+// 处理上传队列
+const processUploadQueue = async () => {
+  while (uploadQueue.value.length > 0 && activeUploads < maxConcurrentUploads) {
+    const fileName = uploadQueue.value[0]
+    const status = uploadStatus[fileName]
+    
+    if (status && status.status === 'waiting' && status.file) {
+      activeUploads++
+      uploadQueue.value.shift()
+      await doUploadFile(fileName, status.file)
+      activeUploads--
+      processUploadQueue()
+    }
   }
 }
 
+// 处理文件上传
+const handleUpload = async ({ file, onFinish, onError, onProgress }: UploadCustomRequestOptions) => {
+  if (!file) return
+  await handleBeforeUpload({ file })
+}
+
+// 处理文件夹上传
 const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
-  const { file, onFinish, onError, onProgress } = options
+  const { file } = options
   if (!file) return
 
   const fileName = file.name
@@ -224,43 +320,98 @@ const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
   const fullPath = fileStore.currentPathString
     ? `${fileStore.currentPathString}/${path}`
     : path
-  
-  uploadStatus[fileName] = {
-    progress: 0,
-    status: 'uploading'
-  }
+
+  await handleBeforeUpload({ 
+    file: {
+      ...file,
+      file: file.file,
+      name: fileName
+    }
+  })
+}
+
+// 处理上传变化
+const handleUploadChange = (data: { fileList: UploadFileInfo[] }) => {
+  console.log('Upload change:', data)
+}
+
+// 上传文件的具体实现
+const doUploadFile = async (fileName: string, file: File) => {
+  const status = uploadStatus[fileName]
+  if (!status) return
+
+  status.status = 'uploading'
+  status.startTime = Date.now()
+  status.speed = 0
 
   try {
     await uploadFile({
-      file: file.file as File,
-      path: fullPath,
-      onProgress: (progress) => {
-        uploadStatus[fileName].progress = progress
-        onProgress?.({ percent: progress })
+      file: file,
+      path: fileStore.currentPathString,
+      onProgress: (progress: number) => {
+        status.progress = progress
+        // 计算上传速度
+        const elapsedTime = (Date.now() - (status.startTime || 0)) / 1000
+        if (elapsedTime > 0) {
+          status.speed = (file.size * (progress / 100)) / elapsedTime
+        }
       },
       onSuccess: () => {
-        uploadStatus[fileName].status = 'finished'
+        status.status = 'finished'
+        status.progress = 100
         message.success(`${fileName} 上传成功`)
         fileStore.fetchFiles()
-        onFinish()
       },
-      onError: (error: unknown) => {
-        uploadStatus[fileName].status = 'error'
-        uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败'
+      onError: (error: string) => {
+        status.status = 'error'
+        status.message = error
         message.error(`${fileName} 上传失败`)
-        onError()
       }
     })
-  } catch (error: unknown) {
-    uploadStatus[fileName].status = 'error'
-    uploadStatus[fileName].message = error instanceof Error ? error.message : '上传失败，请重试'
+  } catch (error) {
+    status.status = 'error'
+    status.message = error instanceof Error ? error.message : '上传失败，请重试'
     message.error(`${fileName} 上传失败`)
-    onError()
   }
 }
 
-const handleUploadChange = (data: { fileList: UploadFileInfo[] }) => {
-  console.log('Upload change:', data)
+// 重试上传
+const retryUpload = (fileName: string) => {
+  const status = uploadStatus[fileName]
+  if (status && status.file) {
+    status.status = 'waiting'
+    status.progress = 0
+    status.message = undefined
+    uploadQueue.value.push(fileName)
+    processUploadQueue()
+  }
+}
+
+// 移除上传
+const removeUpload = (fileName: string) => {
+  delete uploadStatus[fileName]
+  const queueIndex = uploadQueue.value.indexOf(fileName)
+  if (queueIndex > -1) {
+    uploadQueue.value.splice(queueIndex, 1)
+  }
+}
+
+// 清除已完成的上传
+const clearFinishedUploads = () => {
+  Object.entries(uploadStatus).forEach(([fileName, status]) => {
+    if (status.status === 'finished') {
+      delete uploadStatus[fileName]
+    }
+  })
+}
+
+// 格式化文件大小
+const formatFileSize = (size: number) => {
+  if (size === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const k = 1024
+  const i = Math.floor(Math.log(size) / Math.log(k))
+  return parseFloat((size / Math.pow(k, i)).toFixed(2)) + ' ' + units[i]
 }
 
 // 文件夹操作相关
@@ -284,6 +435,30 @@ const handleConfirmCreateFolder = async () => {
     newFolderName.value = ''
   } catch (error: unknown) {
     message.error(error instanceof Error ? error.message : '创建文件夹失败')
+  }
+}
+
+const loadingIndex = ref(-1)
+
+// 处理根目录点击
+const handleRootClick = async () => {
+  try {
+    loadingIndex.value = -1
+    await fileStore.enterDirectory('/')
+  } finally {
+    loadingIndex.value = -1
+  }
+}
+
+// 处理面包屑点击
+const handleBreadcrumbClick = async (index: number) => {
+  try {
+    loadingIndex.value = index
+    // 根据点击的索引构建路径
+    const targetPath = fileStore.currentPath.slice(0, index + 1).join('/')
+    await fileStore.enterDirectory('/' + targetPath)
+  } finally {
+    loadingIndex.value = -1
   }
 }
 </script>
@@ -313,24 +488,27 @@ const handleConfirmCreateFolder = async () => {
 }
 
 .right-section {
-  flex: 1 1 auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-and-actions {
   display: flex;
   align-items: center;
   gap: 16px;
   justify-content: flex-end;
-  min-width: 0;
 }
 
 .search-box {
-  flex: 1 1 auto;
+  flex: 1;
   max-width: 400px;
   min-width: 200px;
-  margin-right: 16px;
 }
 
 .action-buttons {
-  flex: 0 0 auto;
-  white-space: nowrap;
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .upload-dragger-content {
@@ -338,27 +516,146 @@ const handleConfirmCreateFolder = async () => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 20px;
+  padding: 24px;
+}
+
+.upload-tabs {
+  margin-bottom: 16px;
+}
+
+.upload-area {
+  margin-bottom: 16px;
+}
+
+.upload-hint {
+  margin-top: 8px;
+  text-align: center;
+  color: var(--n-text-color-3);
+  font-size: 12px;
+}
+
+.upload-hint p {
+  margin: 4px 0;
 }
 
 .upload-list {
-  margin-top: 16px;
+  background-color: var(--n-card-color);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.upload-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.upload-items {
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .upload-item {
-  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: var(--n-color);
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
 }
 
-.upload-info {
+.upload-item:last-child {
+  margin-bottom: 0;
+}
+
+.upload-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.filename {
+  flex: 1;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filesize {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.upload-item-body {
+  margin-bottom: 8px;
+}
+
+.progress-info {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.status {
+  color: var(--n-text-color-3);
+}
+
+.progress-text {
+  color: var(--n-text-color-2);
+}
+
+.upload-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .error-message {
-  color: var(--error-color);
+  color: var(--n-error-color);
   font-size: 12px;
-  margin-top: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.is-finished {
+  background-color: rgba(var(--n-success-color-rgb), 0.1);
+}
+
+.is-error {
+  background-color: rgba(var(--n-error-color-rgb), 0.1);
+}
+
+/* 在小屏幕下调整按钮样式 */
+@media screen and (max-width: 768px) {
+  .header-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .search-and-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .search-box {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .action-buttons {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>
 
