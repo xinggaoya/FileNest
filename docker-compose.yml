@@ -10,12 +10,6 @@ services:
     ports:
       - "9040:9040"
     volumes:
-      - /www/storage:/app/storage
+      - /www/FileNest:/app/upload
     environment:
       - GIN_MODE=release
-    networks:
-      - filenest-network
-
-networks:
-  filenest-network:
-    driver: bridge

@@ -27,4 +27,5 @@ docker-compose.yml
 
 # 存储目录
 storage/*
-!storage/.gitkeep 
+!storage/.gitkeep
+upload
