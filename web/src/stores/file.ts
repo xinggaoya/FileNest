@@ -10,7 +10,10 @@ import {
   searchFiles,
   addFavorite as addFavoriteApi,
   removeFavorite as removeFavoriteApi,
-  getFavorites as getFavoritesApi
+  getFavorites as getFavoritesApi,
+  renameFile as renameFileApi,
+  copyFile as copyFileApi,
+  moveFile as moveFileApi
 } from '@/api/file/file'
 
 const { message } = createDiscreteApi(['message'])
@@ -198,6 +201,42 @@ export const useFileStore = defineStore('file', () => {
     }
   }
 
+  // 重命名文件或文件夹
+  const renameFile = async (path: string, newName: string) => {
+    try {
+      await renameFileApi(path, newName)
+      message.success('重命名成功')
+      await fetchFiles()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '重命名失败')
+      throw error
+    }
+  }
+
+  // 复制文件或文件夹
+  const copyFile = async (srcPath: string, destPath: string) => {
+    try {
+      await copyFileApi(srcPath, destPath)
+      message.success('复制成功')
+      await fetchFiles()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '复制失败')
+      throw error
+    }
+  }
+
+  // 移动文件或文件夹
+  const moveFile = async (srcPath: string, destPath: string) => {
+    try {
+      await moveFileApi(srcPath, destPath)
+      message.success('移动成功')
+      await fetchFiles()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '移动失败')
+      throw error
+    }
+  }
+
   return {
     currentPath,
     currentPathString,
@@ -218,6 +257,9 @@ export const useFileStore = defineStore('file', () => {
     formatFileSize,
     fetchFavorites,
     addToFavorites,
-    removeFromFavorites
+    removeFromFavorites,
+    renameFile,
+    copyFile,
+    moveFile
   }
 })

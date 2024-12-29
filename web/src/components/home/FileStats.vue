@@ -1,41 +1,56 @@
 <template>
   <div class="file-stats">
     <n-space>
-      <n-statistic label="文件数" :value="fileCount" />
-      <n-statistic label="文件夹数" :value="folderCount" />
+      <n-statistic label="文件数" :value="stats.totalFiles" />
+      <n-statistic label="文件夹数" :value="stats.totalFolders" />
       <n-statistic label="总大小" :value="formattedTotalSize" />
     </n-space>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { formatFileSize } from '@/utils/format'
 import { useFileStore } from '@/stores/file'
-import type { FileInfo } from '@/types/file'
+import { getFileStats } from '@/api/file/file'
+import type { FileStats } from '@/types/file'
+import { createDiscreteApi } from 'naive-ui'
 
+const { message } = createDiscreteApi(['message'])
 const fileStore = useFileStore()
 
-// 计算文件数量
-const fileCount = computed(() => {
-  return fileStore.files.filter((file: FileInfo) => !file.isDir).length
-})
-
-// 计算文件夹数量
-const folderCount = computed(() => {
-  return fileStore.files.filter((file: FileInfo) => file.isDir).length
-})
-
-// 计算总大小
-const totalSize = computed(() => {
-  return fileStore.files.reduce((total: number, file: FileInfo) => {
-    return total + (file.isDir ? 0 : file.fileSize)
-  }, 0)
+// 统计数据
+const stats = ref<FileStats>({
+  totalFiles: 0,
+  totalFolders: 0,
+  totalSize: 0
 })
 
 // 格式化后的总大小
 const formattedTotalSize = computed(() => {
-  return formatFileSize(totalSize.value)
+  return formatFileSize(stats.value.totalSize)
+})
+
+// 获取统计数据
+const fetchStats = async () => {
+  try {
+    const { data } = await getFileStats({ path: fileStore.currentPathString })
+    if (data) {
+      stats.value = data
+    }
+  } catch (error) {
+    message.error('获取统计信息失败')
+  }
+}
+
+// 监听路径变化，重新获取统计数据
+watch(() => fileStore.currentPathString, () => {
+  fetchStats()
+})
+
+// 初始化时获取统计数据
+onMounted(() => {
+  fetchStats()
 })
 </script>
 

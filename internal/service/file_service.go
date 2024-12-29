@@ -28,6 +28,12 @@ type FileService interface {
 	RemoveFavorite(filePath string) error
 	// GetFavorites 获取收藏列表
 	GetFavorites() ([]model.Favorite, error)
+	// RenameFile 重命名文件或文件夹
+	RenameFile(oldPath string, newName string) error
+	// CopyFile 复制文件或文件夹
+	CopyFile(srcPath string, destPath string) error
+	// MoveFile 移动文件或文件夹
+	MoveFile(srcPath string, destPath string) error
 }
 
 func NewFileService() FileService {

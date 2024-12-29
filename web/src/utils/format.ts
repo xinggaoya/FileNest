@@ -4,19 +4,21 @@
  * @returns 格式化后的文件大小
  */
 export function formatFileSize(size: number): string {
-  if (size < 1024) {
-    return size + ' B'
-  }
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let value = size
-  let unitIndex = 0
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const k = 1024
 
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024
-    unitIndex++
+  if (size === 0) return '0 B'
+  
+  const i = Math.floor(Math.log(size) / Math.log(k))
+  const value = size / Math.pow(k, i)
+  
+  // 如果是 B，不显示小数点
+  if (i === 0) {
+    return Math.round(value) + ' ' + units[i]
   }
-
-  return value.toFixed(2) + ' ' + units[unitIndex]
+  
+  // 其他单位显示两位小数
+  return value.toFixed(2) + ' ' + units[i]
 }
 
 /**

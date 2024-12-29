@@ -38,6 +38,9 @@ func Install(app *gin.Engine) {
 	file.GET("/download", fileController.DownloadFile)
 	file.DELETE("/delete", fileController.DeleteFile)
 	file.DELETE("/favorite", fileController.RemoveFavorite)
+	file.POST("/rename", fileController.RenameFile)
+	file.POST("/copy", fileController.CopyFile)
+	file.POST("/move", fileController.MoveFile)
 }
 
 // RegisterGlobalMiddleware 注册全局中间件

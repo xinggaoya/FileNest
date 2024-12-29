@@ -41,6 +41,15 @@
             <n-button quaternary circle size="small" @click.stop="handleDownload" v-if="!file.isDir">
               <template #icon><download-outlined /></template>
             </n-button>
+            <n-button quaternary circle size="small" @click.stop="handleRename">
+              <template #icon><edit-outlined /></template>
+            </n-button>
+            <n-button quaternary circle size="small" @click.stop="handleCopy">
+              <template #icon><copy-outlined /></template>
+            </n-button>
+            <n-button quaternary circle size="small" @click.stop="handleMove">
+              <template #icon><scissor-outlined /></template>
+            </n-button>
             <n-button quaternary circle size="small" @click.stop="handleDelete">
               <template #icon><delete-outlined /></template>
             </n-button>
@@ -80,6 +89,15 @@
           <n-button quaternary circle size="small" @click.stop="handleDownload" v-if="!file.isDir">
             <template #icon><download-outlined /></template>
           </n-button>
+          <n-button quaternary circle size="small" @click.stop="handleRename">
+            <template #icon><edit-outlined /></template>
+          </n-button>
+          <n-button quaternary circle size="small" @click.stop="handleCopy">
+            <template #icon><copy-outlined /></template>
+          </n-button>
+          <n-button quaternary circle size="small" @click.stop="handleMove">
+            <template #icon><scissor-outlined /></template>
+          </n-button>
           <n-button quaternary circle size="small" @click.stop="handleDelete">
             <template #icon><delete-outlined /></template>
           </n-button>
@@ -108,12 +126,99 @@
       </div>
     </div>
   </n-modal>
+
+  <!-- 重命名对话框 -->
+  <n-modal v-model:show="showRenameModal" preset="card" title="重命名" style="width: 400px">
+    <n-input v-model:value="newFileName" placeholder="请输入新名称" @keyup.enter="confirmRename" />
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <n-button-group>
+        <n-button @click="showRenameModal = false">取消</n-button>
+        <n-button type="primary" @click="confirmRename" :disabled="!newFileName">确定</n-button>
+      </n-button-group>
+    </div>
+  </n-modal>
+
+  <!-- 复制对话框 -->
+  <n-modal v-model:show="showCopyModal" preset="card" title="复制到" style="width: 500px">
+    <div class="folder-select-modal">
+      <div class="current-path">
+        <n-breadcrumb>
+          <n-breadcrumb-item @click="selectTargetPath('')">根目录</n-breadcrumb-item>
+          <n-breadcrumb-item v-for="(folder, index) in targetPathArray" :key="index"
+            @click="selectTargetPath(targetPathArray.slice(0, index + 1).join('/'))">
+            {{ folder }}
+          </n-breadcrumb-item>
+        </n-breadcrumb>
+      </div>
+      <div class="folder-list">
+        <n-scrollbar style="max-height: 300px">
+          <div class="folder-item" @click="selectTargetPath('')">
+            <n-icon><folder-outlined /></n-icon>
+            <span>根目录</span>
+          </div>
+          <div v-for="folder in targetFolders" :key="folder.fileName" class="folder-item"
+            @click="selectTargetPath(folder.filePath)">
+            <n-icon><folder-outlined /></n-icon>
+            <span>{{ folder.fileName }}</span>
+          </div>
+        </n-scrollbar>
+      </div>
+      <div class="selected-path">
+        <span class="path-label">目标路径：</span>
+        <span class="path-value">{{ targetPath || '根目录' }}</span>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <n-button-group>
+        <n-button @click="showCopyModal = false">取消</n-button>
+        <n-button type="primary" @click="confirmCopy">确定</n-button>
+      </n-button-group>
+    </div>
+  </n-modal>
+
+  <!-- 移动对话框 -->
+  <n-modal v-model:show="showMoveModal" preset="card" title="移动到" style="width: 500px">
+    <div class="folder-select-modal">
+      <div class="current-path">
+        <n-breadcrumb>
+          <n-breadcrumb-item @click="selectTargetPath('')">根目录</n-breadcrumb-item>
+          <n-breadcrumb-item v-for="(folder, index) in targetPathArray" :key="index"
+            @click="selectTargetPath(targetPathArray.slice(0, index + 1).join('/'))">
+            {{ folder }}
+          </n-breadcrumb-item>
+        </n-breadcrumb>
+      </div>
+      <div class="folder-list">
+        <n-scrollbar style="max-height: 300px">
+          <div class="folder-item" @click="selectTargetPath('')">
+            <n-icon><folder-outlined /></n-icon>
+            <span>根目录</span>
+          </div>
+          <div v-for="folder in targetFolders" :key="folder.fileName" class="folder-item"
+            @click="selectTargetPath(folder.filePath)">
+            <n-icon><folder-outlined /></n-icon>
+            <span>{{ folder.fileName }}</span>
+          </div>
+        </n-scrollbar>
+      </div>
+      <div class="selected-path">
+        <span class="path-label">目标路径：</span>
+        <span class="path-value">{{ targetPath || '根目录' }}</span>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <n-button-group>
+        <n-button @click="showMoveModal = false">取消</n-button>
+        <n-button type="primary" @click="confirmMove">确定</n-button>
+      </n-button-group>
+    </div>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { FileInfo } from '@/types/file'
-import { getDownloadUrl } from '@/api/file/file'
+import { getDownloadUrl, getFileList } from '@/api/file/file'
 import { useFileStore } from '@/stores/file'
 import {
   FolderOutlined,
@@ -124,11 +229,14 @@ import {
   EyeOutlined,
   DownloadOutlined,
   DeleteOutlined,
-  CloseOutlined
+  EditOutlined,
+  CopyOutlined,
+  ScissorOutlined
 } from '@vicons/antd'
 import { createDiscreteApi } from 'naive-ui'
 import { useDialog, NCheckbox } from 'naive-ui'
 import { h } from 'vue'
+import { NBreadcrumb, NBreadcrumbItem, NScrollbar } from 'naive-ui'
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 const fileStore = useFileStore()
@@ -141,6 +249,13 @@ const isHovered = ref(false)
 const showPreview = ref(false)
 const previewContent = ref('')
 const forceDelete = ref(false)
+const showRenameModal = ref(false)
+const showCopyModal = ref(false)
+const showMoveModal = ref(false)
+const newFileName = ref('')
+const targetPath = ref('')
+const targetFolders = ref<FileInfo[]>([])
+const targetPathArray = computed(() => targetPath.value ? targetPath.value.split('/') : [])
 
 // 获取文件图标
 const getFileIcon = (fileName: string) => {
@@ -252,6 +367,79 @@ const handleDelete = async () => {
         await fileStore.removeFile(props.file.filePath)
       }
     })
+  }
+}
+
+// 处理重命名
+const handleRename = () => {
+  newFileName.value = props.file.fileName
+  showRenameModal.value = true
+}
+
+// 选择目标路径
+const selectTargetPath = async (path: string) => {
+  targetPath.value = path
+  try {
+    const { data } = await getFileList(path)
+    targetFolders.value = data.filter((item: FileInfo) => item.isDir)
+  } catch (error) {
+    message.error('获取文件夹列表失败')
+  }
+}
+
+// 处理复制
+const handleCopy = async () => {
+  targetPath.value = ''
+  await selectTargetPath('')
+  showCopyModal.value = true
+}
+
+// 处理移动
+const handleMove = async () => {
+  targetPath.value = ''
+  await selectTargetPath('')
+  showMoveModal.value = true
+}
+
+// 确认重命名
+const confirmRename = async () => {
+  if (!newFileName.value || newFileName.value === props.file.fileName) {
+    showRenameModal.value = false
+    return
+  }
+  try {
+    await fileStore.renameFile(props.file.filePath, newFileName.value)
+    showRenameModal.value = false
+  } catch (error) {
+    // 错误已在 store 中处理
+  }
+}
+
+// 确认复制
+const confirmCopy = async () => {
+  if (!targetPath.value) {
+    message.error('请输入目标路径')
+    return
+  }
+  try {
+    await fileStore.copyFile(props.file.filePath, targetPath.value)
+    showCopyModal.value = false
+  } catch (error) {
+    // 错误已在 store 中处理
+  }
+}
+
+// 确认移动
+const confirmMove = async () => {
+  if (!targetPath.value) {
+    message.error('请输入目标路径')
+    return
+  }
+  try {
+    await fileStore.moveFile(props.file.filePath, targetPath.value)
+    showMoveModal.value = false
+  } catch (error) {
+    // 错误已在 store 中处理
   }
 }
 </script>
@@ -460,5 +648,87 @@ const handleDelete = async () => {
   padding: 32px;
   text-align: center;
   color: var(--n-text-color-3);
+}
+
+.modal-info {
+  margin: 8px 0;
+  color: var(--n-text-color-2);
+  font-size: 14px;
+}
+
+.path-input {
+  margin-top: 16px;
+}
+
+.input-label {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--n-text-color);
+}
+
+.modal-input {
+  margin: 8px 0;
+}
+
+.path-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.rename-modal,
+.copy-modal,
+.move-modal {
+  padding: 8px 0;
+}
+
+.folder-select-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.current-path {
+  padding: 8px;
+  background-color: var(--n-color-hover);
+  border-radius: 4px;
+}
+
+.folder-list {
+  border: 1px solid var(--n-border-color);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.folder-item:hover {
+  background-color: var(--n-color-hover);
+}
+
+.selected-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background-color: var(--n-color-hover);
+  border-radius: 4px;
+}
+
+.path-label {
+  color: var(--n-text-color-3);
+}
+
+.path-value {
+  color: var(--n-text-color);
+  font-weight: 500;
 }
 </style> 

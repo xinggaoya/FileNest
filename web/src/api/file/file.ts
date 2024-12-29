@@ -106,3 +106,15 @@ export const removeFavorite = (path: string) => {
 export const getFavorites = () => {
   return get<Favorite[]>('/file/favorites')
 }
+
+export const renameFile = (path: string, newName: string) => {
+  return post('/file/rename', null, { params: { path, newName } })
+}
+
+export const copyFile = (srcPath: string, destPath: string) => {
+  return post('/file/copy', null, { params: { srcPath, destPath } })
+}
+
+export const moveFile = (srcPath: string, destPath: string) => {
+  return post('/file/move', null, { params: { srcPath, destPath } })
+}

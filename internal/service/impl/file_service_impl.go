@@ -5,6 +5,7 @@ import (
 	"FileNest/internal/consts"
 	"FileNest/internal/model"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -379,4 +380,167 @@ func (h *FileServiceImpl) CreateFolder(path string) error {
 // RemoveFile 删除文件（实际调用 DeleteFile 方法）
 func (h *FileServiceImpl) RemoveFile(path string, force bool) error {
 	return h.DeleteFile(path, force)
+}
+
+// RenameFile 重命名文件或文件夹
+func (h *FileServiceImpl) RenameFile(oldPath string, newName string) error {
+	glog.Infof("开始重命名，原路径: %s, 新名称: %s", oldPath, newName)
+
+	// 构建完整的原路径
+	oldFullPath := filepath.Join(consts.UploadDir, oldPath)
+
+	// 获取父目录
+	parentDir := filepath.Dir(oldPath)
+	// 构建新路径
+	newPath := filepath.Join(parentDir, newName)
+	newFullPath := filepath.Join(consts.UploadDir, newPath)
+
+	// 检查新路径是否已存在
+	if _, err := os.Stat(newFullPath); err == nil {
+		return fmt.Errorf("目标路径已存在: %s", newPath)
+	}
+
+	// 执行重命名
+	if err := os.Rename(oldFullPath, newFullPath); err != nil {
+		glog.Errorf("重命名失败: %s", err)
+		return fmt.Errorf("重命名失败: %s", err)
+	}
+
+	glog.Infof("重命名成功: %s -> %s", oldPath, newPath)
+	return nil
+}
+
+// CopyFile 复制文件或文件夹
+func (h *FileServiceImpl) CopyFile(srcPath string, destPath string) error {
+	glog.Infof("开始复制，源路径: %s, 目标路径: %s", srcPath, destPath)
+
+	srcFullPath := filepath.Join(consts.UploadDir, srcPath)
+	destFullPath := filepath.Join(consts.UploadDir, destPath)
+
+	// 检查源路径是否存在
+	srcInfo, err := os.Stat(srcFullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("源文件不存在: %s", srcPath)
+		}
+		return fmt.Errorf("获取源文件信息失败: %s", err)
+	}
+
+	// 检查目标路径是否已存在
+	if _, err := os.Stat(destFullPath); err == nil {
+		return fmt.Errorf("目标路径已存在: %s", destPath)
+	}
+
+	if srcInfo.IsDir() {
+		// 复制目录
+		if err := h.copyDir(srcFullPath, destFullPath); err != nil {
+			return fmt.Errorf("复制目录失败: %s", err)
+		}
+	} else {
+		// 复制文件
+		if err := h.copyFileContent(srcFullPath, destFullPath); err != nil {
+			return fmt.Errorf("复制文件失败: %s", err)
+		}
+	}
+
+	glog.Infof("复制成功: %s -> %s", srcPath, destPath)
+	return nil
+}
+
+// MoveFile 移动文件或文件夹
+func (h *FileServiceImpl) MoveFile(srcPath string, destPath string) error {
+	glog.Infof("开始移动，源路径: %s, 目标路径: %s", srcPath, destPath)
+
+	srcFullPath := filepath.Join(consts.UploadDir, srcPath)
+	destFullPath := filepath.Join(consts.UploadDir, destPath)
+
+	// 检查源路径是否存在
+	if _, err := os.Stat(srcFullPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("源文件不存在: %s", srcPath)
+		}
+		return fmt.Errorf("获取源文件信息失败: %s", err)
+	}
+
+	// 检查目标路径是否已存在
+	if _, err := os.Stat(destFullPath); err == nil {
+		return fmt.Errorf("目标路径已存在: %s", destPath)
+	}
+
+	// 确保目标目录存在
+	destDir := filepath.Dir(destFullPath)
+	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+		return fmt.Errorf("创建目标目录失败: %s", err)
+	}
+
+	// 执行移动
+	if err := os.Rename(srcFullPath, destFullPath); err != nil {
+		glog.Errorf("移动失败: %s", err)
+		return fmt.Errorf("移动失败: %s", err)
+	}
+
+	glog.Infof("移动成功: %s -> %s", srcPath, destPath)
+	return nil
+}
+
+// copyDir 复制目录
+func (h *FileServiceImpl) copyDir(src string, dest string) error {
+	// 创建目标目录
+	if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+		return err
+	}
+
+	// 读取源目录
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		destPath := filepath.Join(dest, entry.Name())
+
+		if entry.IsDir() {
+			// 递归复制子目录
+			if err := h.copyDir(srcPath, destPath); err != nil {
+				return err
+			}
+		} else {
+			// 复制文件
+			if err := h.copyFileContent(srcPath, destPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// copyFileContent 复制文件内容
+func (h *FileServiceImpl) copyFileContent(src string, dest string) error {
+	// 打开源文件
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// 创建目标文件
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	// 复制内容
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		return err
+	}
+
+	// 保持文件权限
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(dest, srcInfo.Mode())
 }

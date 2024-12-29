@@ -261,3 +261,72 @@ func (h *FileController) GetFavorites(ctx *gin.Context) {
 	glog.Infof("获取收藏列表成功，共 %d 条记录", len(favorites))
 	response.Success(ctx, favorites)
 }
+
+// RenameFile 重命名文件或文件夹
+func (h *FileController) RenameFile(ctx *gin.Context) {
+	oldPath := ctx.Query("path")
+	newName := ctx.Query("newName")
+
+	glog.Infof("收到重命名请求，原路径: %s, 新名称: %s", oldPath, newName)
+
+	if oldPath == "" || newName == "" {
+		glog.Errorf("参数错误：路径或新名称为空")
+		response.Error(ctx, "路径和新名称不能为空")
+		return
+	}
+
+	if err := h.fileService.RenameFile(oldPath, newName); err != nil {
+		glog.Errorf("重命名失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Info("重命名成功")
+	response.Success(ctx, nil)
+}
+
+// CopyFile 复制文件或文件夹
+func (h *FileController) CopyFile(ctx *gin.Context) {
+	srcPath := ctx.Query("srcPath")
+	destPath := ctx.Query("destPath")
+
+	glog.Infof("收到复制请求，源路径: %s, 目标路径: %s", srcPath, destPath)
+
+	if srcPath == "" || destPath == "" {
+		glog.Errorf("参数错误：源路径或目标路径为空")
+		response.Error(ctx, "源路径和目标路径不能为空")
+		return
+	}
+
+	if err := h.fileService.CopyFile(srcPath, destPath); err != nil {
+		glog.Errorf("复制失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Info("复制成功")
+	response.Success(ctx, nil)
+}
+
+// MoveFile 移动文件或文件夹
+func (h *FileController) MoveFile(ctx *gin.Context) {
+	srcPath := ctx.Query("srcPath")
+	destPath := ctx.Query("destPath")
+
+	glog.Infof("收到移动请求，源路径: %s, 目标路径: %s", srcPath, destPath)
+
+	if srcPath == "" || destPath == "" {
+		glog.Errorf("参数错误：源路径或目标路径为空")
+		response.Error(ctx, "源路径和目标路径不能为空")
+		return
+	}
+
+	if err := h.fileService.MoveFile(srcPath, destPath); err != nil {
+		glog.Errorf("移动失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	glog.Info("移动成功")
+	response.Success(ctx, nil)
+}
