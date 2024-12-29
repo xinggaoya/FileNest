@@ -1,26 +1,6 @@
 import { get, post, del, download } from '@/utils/request'
 import type { AxiosProgressEvent } from 'axios'
-
-export interface FileInfo {
-  fileName: string
-  filePath: string
-  fileSize: number
-  fileType?: string
-  isDir: boolean
-  modTime: string
-}
-
-export interface GetFileListParams {
-  path: string
-}
-
-export interface CreateFolderParams {
-  path: string
-}
-
-export interface DeleteFileParams {
-  path: string
-}
+import type { FileInfo, Favorite, FileStats } from '@/types/file'
 
 export interface UploadParams {
   indexChunk: number
@@ -28,12 +8,6 @@ export interface UploadParams {
   fileName: string
   path: string
   override: boolean
-}
-
-export interface FileStats {
-  totalFiles: number
-  totalFolders: number
-  totalSize: number
 }
 
 export interface GetFileStatsParams {
@@ -44,17 +18,10 @@ export interface SearchFilesParams {
   keyword: string
 }
 
-export interface Favorite {
-  id: number
-  filePath: string
-  fileName: string
-  isDir: boolean
-  createdAt: string
-}
-
 export interface UploadFileParams {
   file: File
   path: string
+  override?: boolean
   onProgress?: (progress: number) => void
   onSuccess?: () => void
   onError?: (error: string) => void
@@ -68,8 +35,8 @@ export const createFolder = (path: string) => {
   return post('/file/create-folder', null, { params: { path } })
 }
 
-export const deleteFile = (path: string) => {
-  return del('/file/delete', { path })
+export const deleteFile = (path: string, force: boolean = false) => {
+  return del('/file/delete', { path, force })
 }
 
 export const downloadFile = (path: string) => {
@@ -82,6 +49,7 @@ export const downloadFile = (path: string) => {
 export const uploadFile = async ({
   file,
   path,
+  override = false,
   onProgress,
   onSuccess,
   onError
@@ -90,6 +58,7 @@ export const uploadFile = async ({
   formData.append('file', file)
   formData.append('fileName', file.name)
   formData.append('path', path)
+  formData.append('override', override.toString())
 
   try {
     await post('/file/upload', formData, {

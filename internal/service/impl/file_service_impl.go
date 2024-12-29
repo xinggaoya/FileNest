@@ -100,8 +100,8 @@ func (s *FileServiceImpl) GetFileList(path string) ([]model.FileInfo, error) {
 }
 
 // DeleteFile 删除文件或文件夹
-func (h *FileServiceImpl) DeleteFile(path string) error {
-	glog.Infof("开始删除文件或文件夹，路径: %s", path)
+func (h *FileServiceImpl) DeleteFile(path string, force bool) error {
+	glog.Infof("开始删除文件或文件夹，路径: %s, 强制删除: %v", path, force)
 
 	// 规范化路径
 	path = filepath.Clean(path)
@@ -132,11 +132,15 @@ func (h *FileServiceImpl) DeleteFile(path string) error {
 			glog.Errorf("读取目录失败: %s", err)
 			return fmt.Errorf("读取目录失败: %s", err)
 		}
-		if len(entries) > 0 {
-			glog.Errorf("目录不为空: %s", fullPath)
-			return fmt.Errorf("目录不为空，无法删除: %s", path)
+		if len(entries) > 0 && !force {
+			glog.Errorf("目录不为空且未指定强制删除: %s", fullPath)
+			return fmt.Errorf("目录不为空，如需删除请勾选\"强制删除\"选项")
 		}
-		err = os.Remove(fullPath) // 使用 Remove 删除空目录
+		if force {
+			err = os.RemoveAll(fullPath) // 使用 RemoveAll 递归删除目录及其内容
+		} else {
+			err = os.Remove(fullPath) // 使用 Remove 删除空目录
+		}
 	} else {
 		err = os.Remove(fullPath) // 删除文件
 	}
@@ -151,8 +155,8 @@ func (h *FileServiceImpl) DeleteFile(path string) error {
 }
 
 // UploadFile 上传文件
-func (h *FileServiceImpl) UploadFile(path, fileName string, totalChunks int) error {
-	glog.Infof("开始上传文件，路径: %s, 文件名: %s", path, fileName)
+func (h *FileServiceImpl) UploadFile(path, fileName string, totalChunks int, override bool) error {
+	glog.Infof("开始上传文件，路径: %s, 文件名: %s, 是否覆盖: %v", path, fileName, override)
 
 	// 规范化路径
 	path = filepath.Clean(path)
@@ -179,8 +183,16 @@ func (h *FileServiceImpl) UploadFile(path, fileName string, totalChunks int) err
 
 	// 检查文件是否已存在
 	if _, err := os.Stat(outFilePath); err == nil {
-		glog.Errorf("文件已存在: %s", outFilePath)
-		return fmt.Errorf("文件已存在: %s", fileName)
+		if !override {
+			glog.Errorf("文件已存在且不允许覆盖: %s", outFilePath)
+			return fmt.Errorf("文件已存在: %s", fileName)
+		}
+		// 如果允许覆盖，删除已存在的文件
+		if err := os.Remove(outFilePath); err != nil {
+			glog.Errorf("删除已存在文件失败: %s", err)
+			return fmt.Errorf("删除已存在文件失败: %s", err)
+		}
+		glog.Infof("已删除已存在的文件: %s", outFilePath)
 	} else if !os.IsNotExist(err) {
 		glog.Errorf("检查文件状态失败: %s", err)
 		return fmt.Errorf("检查文件状态失败: %s", err)
@@ -302,10 +314,10 @@ func (s *FileServiceImpl) AddFavorite(filePath string) error {
 
 	// 创建收藏记录
 	favorite := model.Favorite{
-		FilePath:  filePath,
-		FileName:  info.Name(),
-		IsDir:     info.IsDir(),
-		CreatedAt: time.Now(),
+		Name:       info.Name(),
+		Path:       filePath,
+		IsDir:      info.IsDir(),
+		CreateTime: time.Now(),
 	}
 
 	// TODO: 保存到数据库
@@ -365,6 +377,6 @@ func (h *FileServiceImpl) CreateFolder(path string) error {
 }
 
 // RemoveFile 删除文件（实际调用 DeleteFile 方法）
-func (h *FileServiceImpl) RemoveFile(path string) error {
-	return h.DeleteFile(path)
+func (h *FileServiceImpl) RemoveFile(path string, force bool) error {
+	return h.DeleteFile(path, force)
 }

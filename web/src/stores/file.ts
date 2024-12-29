@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import type { FileInfo, Favorite } from '@/types/file'
 import { createDiscreteApi } from 'naive-ui'
 import { 
   getFileList, 
@@ -7,7 +8,9 @@ import {
   downloadFile, 
   deleteFile, 
   searchFiles,
-  type FileInfo 
+  addFavorite as addFavoriteApi,
+  removeFavorite as removeFavoriteApi,
+  getFavorites as getFavoritesApi
 } from '@/api/file/file'
 
 const { message } = createDiscreteApi(['message'])
@@ -29,6 +32,9 @@ export const useFileStore = defineStore('file', () => {
   // 文件列表
   const files = ref<FileInfo[]>([])
   const isLoading = ref(false)
+
+  // 收藏列表
+  const favorites = ref<Favorite[]>([])
 
   // 视图模式
   const viewMode = ref<'grid' | 'list'>('grid')
@@ -58,6 +64,39 @@ export const useFileStore = defineStore('file', () => {
       files.value = [] // 出错时清空文件列表
     } finally {
       isLoading.value = false
+    }
+  }
+
+  // 获取收藏列表
+  const fetchFavorites = async () => {
+    try {
+      const { data } = await getFavoritesApi()
+      favorites.value = data || []
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '获取收藏列表失败')
+      favorites.value = []
+    }
+  }
+
+  // 添加收藏
+  const addToFavorites = async (path: string) => {
+    try {
+      await addFavoriteApi(path)
+      message.success('添加收藏成功')
+      await fetchFavorites()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '添加收藏失败')
+    }
+  }
+
+  // 取消收藏
+  const removeFromFavorites = async (path: string) => {
+    try {
+      await removeFavoriteApi(path)
+      message.success('取消收藏成功')
+      await fetchFavorites()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '取消收藏失败')
     }
   }
 
@@ -123,9 +162,9 @@ export const useFileStore = defineStore('file', () => {
   }
 
   // 删除文件
-  const deleteFileAction = async (path: string) => {
+  const deleteFileAction = async (path: string, force: boolean = false) => {
     try {
-      await deleteFile(path)
+      await deleteFile(path, force)
       message.success('删除成功')
       await fetchFiles()
     } catch (error) {
@@ -166,6 +205,7 @@ export const useFileStore = defineStore('file', () => {
     isLoading,
     viewMode,
     sortedFiles,
+    favorites,
     fetchFiles,
     enterDirectory,
     createNewFolder,
@@ -175,6 +215,9 @@ export const useFileStore = defineStore('file', () => {
     toggleViewMode,
     searchFile,
     goBack,
-    formatFileSize
+    formatFileSize,
+    fetchFavorites,
+    addToFavorites,
+    removeFromFavorites
   }
 })

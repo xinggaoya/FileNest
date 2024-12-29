@@ -7,4 +7,5 @@
 export {}
 declare global {
   const NButton: typeof import('naive-ui')['NButton']
+  const NCheckbox: typeof import('naive-ui')['NCheckbox']
 }

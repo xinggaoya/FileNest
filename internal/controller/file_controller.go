@@ -72,9 +72,10 @@ func (h *FileController) CreateFolder(ctx *gin.Context) {
 // DeleteFile 删除文件
 func (h *FileController) DeleteFile(ctx *gin.Context) {
 	path := ctx.Query("path")
-	glog.Infof("收到删除文件请求，路径: %s", path)
+	force := ctx.Query("force") == "true"
+	glog.Infof("收到删除文件请求，路径: %s, 强制删除: %v", path, force)
 
-	err := h.fileService.DeleteFile(path)
+	err := h.fileService.DeleteFile(path, force)
 	if err != nil {
 		glog.Errorf("删除文件失败: %s", err)
 		response.Error(ctx, err.Error())
@@ -90,7 +91,7 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 	file, err := ctx.FormFile("file")
 	if err != nil {
 		glog.Errorf("获取上传文件失败: %s", err)
-		response.Error(ctx, "获取��传文件失败")
+		response.Error(ctx, "获取上传文件失败")
 		return
 	}
 
@@ -100,7 +101,8 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 	}
 
 	path := ctx.PostForm("path")
-	glog.Infof("收到文件上传请求，文件名: %s, 路径: %s", fileName, path)
+	override := ctx.PostForm("override") == "true"
+	glog.Infof("收到文件上传请求，文件名: %s, 路径: %s, 是否覆盖: %v", fileName, path, override)
 
 	// 规范化路径
 	path = filepath.Clean(path)
@@ -116,18 +118,6 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 		return
 	}
 
-	// 检查文件是否已存在
-	filePath := filepath.Join(uploadPath, fileName)
-	if _, err = os.Stat(filePath); err == nil {
-		glog.Errorf("文件已存在: %s", filePath)
-		response.Error(ctx, "文件已存在")
-		return
-	} else if !os.IsNotExist(err) {
-		glog.Errorf("检查文件状态失败: %s", err)
-		response.Error(ctx, "检查文件状态失败")
-		return
-	}
-
 	// 检查目标目录是否有写入权限
 	if err := h.checkDirectoryWritePermission(uploadPath); err != nil {
 		glog.Errorf("目标目录无写入权限: %s, 路径: %s", err, uploadPath)
@@ -135,7 +125,15 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 		return
 	}
 
+	// 检查文件上传前置条件
+	if err := h.fileService.UploadFile(path, fileName, 1, override); err != nil {
+		glog.Errorf("文件上传前置检查失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
 	// 保存文件
+	filePath := filepath.Join(uploadPath, fileName)
 	if err = ctx.SaveUploadedFile(file, filePath); err != nil {
 		glog.Errorf("保存文件失败: %s, 路径: %s", err, filePath)
 		response.Error(ctx, "保存文件失败")

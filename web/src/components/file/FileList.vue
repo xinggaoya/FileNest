@@ -15,7 +15,7 @@ import { NButton, NIcon, NSpace, NPopconfirm } from 'naive-ui'
 import { useFileStore } from '@/stores/file'
 import { DownloadOutlined, DeleteOutlined, StarOutlined, StarFilled } from '@vicons/antd'
 import { getDownloadUrl, deleteFile } from '@/api/file/file'
-import type { FileInfo } from '@/api/file/file'
+import type { FileInfo } from '@/types/file'
 import { isAxiosError } from 'axios'
 import { createDiscreteApi } from 'naive-ui'
 
@@ -24,6 +24,11 @@ const fileStore = useFileStore()
 
 // 获取收藏列表
 fileStore.fetchFavorites()
+
+// 检查是否已收藏
+const checkFavorite = (file: FileInfo): boolean => {
+  return fileStore.favorites.some(f => f.path === file.filePath)
+}
 
 const columns = [
   {
@@ -55,14 +60,14 @@ const columns = [
     title: '操作',
     key: 'actions',
     render(row: FileInfo) {
-      const isFavorite = fileStore.favorites.some(f => f.filePath === row.filePath)
+      const isFavorite = checkFavorite(row)
       return h(NSpace, null, {
         default: () => [
           h(
             NButton,
             {
               text: true,
-              onClick: () => handleFavoriteClick(row, isFavorite)
+              onClick: () => handleFavoriteClick(row)
             },
             {
               default: () =>
@@ -118,8 +123,8 @@ const handleFileClick = (file: FileInfo) => {
   }
 }
 
-const handleFavoriteClick = async (file: FileInfo, isFavorite: boolean) => {
-  if (isFavorite) {
+const handleFavoriteClick = async (file: FileInfo) => {
+  if (checkFavorite(file)) {
     await fileStore.removeFromFavorites(file.filePath)
   } else {
     await fileStore.addToFavorites(file.filePath)

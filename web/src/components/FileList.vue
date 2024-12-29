@@ -46,7 +46,9 @@ import { ref, onMounted, watch } from 'vue'
 import { useFileStore } from '@/stores/file'
 import { useMessage } from 'naive-ui'
 import { FolderOutlined, FileOutlined } from '@vicons/antd'
-import type { FileInfo } from '@/api/file/file'
+import type { FileInfo } from '@/types/file'
+import { isAxiosError } from 'axios'
+import { createDiscreteApi } from 'naive-ui'
 
 const message = useMessage()
 const fileStore = useFileStore()
@@ -77,7 +79,7 @@ onMounted(async () => {
   }
 })
 
-// 处理���件点击事件
+// 处理文件点击事件
 const handleFileClick = async (file: FileInfo) => {
   try {
     loading.value = true

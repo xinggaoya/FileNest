@@ -68,8 +68,15 @@
     title="上传文件"
   >
     <n-drawer-content>
+      <!-- 上传设置 -->
+      <div class="upload-settings">
+        <n-checkbox v-model:checked="uploadSettings.override">
+          覆盖已存在的文件
+        </n-checkbox>
+      </div>
+
       <n-tabs type="segment" class="upload-tabs">
-        <n-tab-pane name="upload" tab="上传列表">
+        <n-tab-pane name="file" tab="文件上传">
           <!-- 上传区域 -->
           <n-space vertical>
             <div class="upload-area">
@@ -95,79 +102,6 @@
                 </n-upload-dragger>
               </n-upload>
             </div>
-
-            <!-- 上传进度列表 -->
-            <div class="upload-list" v-if="Object.keys(uploadStatus).length > 0">
-              <div class="upload-list-header">
-                <span>文件上传列表</span>
-                <n-button text type="primary" @click="clearFinishedUploads">
-                  清除已完成
-                </n-button>
-              </div>
-              <div class="upload-items">
-                <div 
-                  class="upload-item" 
-                  v-for="(status, key) in uploadStatus" 
-                  :key="key"
-                  :class="{ 
-                    'is-finished': status.status === 'finished',
-                    'is-error': status.status === 'error'
-                  }"
-                >
-                  <div class="upload-item-header">
-                    <n-icon size="20">
-                      <file-outlined />
-                    </n-icon>
-                    <span class="filename" :title="key">{{ key }}</span>
-                    <span class="filesize">{{ formatFileSize(status.size || 0) }}</span>
-                  </div>
-                  
-                  <div class="upload-item-body">
-                    <div class="progress-info">
-                      <span class="status">
-                        {{ 
-                          status.status === 'uploading' ? 
-                            `上传中 - ${formatFileSize(status.speed || 0)}/s` :
-                          status.status === 'finished' ? '上传完成' :
-                          status.status === 'waiting' ? '等待上传' :
-                          '上传失败'
-                        }}
-                      </span>
-                      <span class="progress-text">{{ status.progress }}%</span>
-                    </div>
-                    <n-progress
-                      type="line"
-                      :percentage="status.progress"
-                      :status="status.status === 'error' ? 'error' :
-                              status.status === 'finished' ? 'success' : 'info'"
-                      :show-indicator="false"
-                      :height="2"
-                    />
-                  </div>
-
-                  <div class="upload-item-footer">
-                    <div class="error-message" v-if="status.message">{{ status.message }}</div>
-                    <div class="actions">
-                      <n-button 
-                        v-if="status.status === 'error'" 
-                        text 
-                        type="primary"
-                        @click="retryUpload(key)"
-                      >
-                        重试
-                      </n-button>
-                      <n-button 
-                        text 
-                        type="error"
-                        @click="removeUpload(key)"
-                      >
-                        移除
-                      </n-button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </n-space>
         </n-tab-pane>
 
@@ -178,7 +112,6 @@
             directory
             :max-size="1024 * 1024 * 500"
             @change="handleUploadChange"
-            @before-upload="handleBeforeUpload"
           >
             <n-upload-dragger>
               <div class="upload-dragger-content">
@@ -195,6 +128,79 @@
           </n-upload>
         </n-tab-pane>
       </n-tabs>
+
+      <!-- 上传进度列表 -->
+      <div class="upload-list" v-if="Object.keys(uploadStatus).length > 0">
+        <div class="upload-list-header">
+          <span>文件上传列表</span>
+          <n-button text type="primary" @click="clearFinishedUploads">
+            清除已完成
+          </n-button>
+        </div>
+        <div class="upload-items">
+          <div 
+            class="upload-item" 
+            v-for="(status, key) in uploadStatus" 
+            :key="key"
+            :class="{ 
+              'is-finished': status.status === 'finished',
+              'is-error': status.status === 'error'
+            }"
+          >
+            <div class="upload-item-header">
+              <n-icon size="20">
+                <file-outlined />
+              </n-icon>
+              <span class="filename" :title="key">{{ key }}</span>
+              <span class="filesize">{{ formatFileSize(status.size || 0) }}</span>
+            </div>
+            
+            <div class="upload-item-body">
+              <div class="progress-info">
+                <span class="status">
+                  {{ 
+                    status.status === 'uploading' ? 
+                      `上传中 - ${formatFileSize(status.speed || 0)}/s` :
+                    status.status === 'finished' ? '上传完成' :
+                    status.status === 'waiting' ? '等待上传' :
+                    '上传失败'
+                  }}
+                </span>
+                <span class="progress-text">{{ status.progress }}%</span>
+              </div>
+              <n-progress
+                type="line"
+                :percentage="status.progress"
+                :status="status.status === 'error' ? 'error' :
+                        status.status === 'finished' ? 'success' : 'info'"
+                :show-indicator="false"
+                :height="2"
+              />
+            </div>
+
+            <div class="upload-item-footer">
+              <div class="error-message" v-if="status.message">{{ status.message }}</div>
+              <div class="actions">
+                <n-button 
+                  v-if="status.status === 'error'" 
+                  text 
+                  type="primary"
+                  @click="retryUpload(key)"
+                >
+                  重试
+                </n-button>
+                <n-button 
+                  text 
+                  type="error"
+                  @click="removeUpload(key)"
+                >
+                  移除
+                </n-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </n-drawer-content>
   </n-drawer>
 
@@ -260,6 +266,11 @@ const uploadQueue = ref<string[]>([])
 const maxConcurrentUploads = 3
 let activeUploads = 0
 
+// 上传设置
+const uploadSettings = reactive({
+  override: false
+})
+
 // 处理上传前的检查
 const handleBeforeUpload = async (data: { file: UploadFileInfo }) => {
   const file = data.file.file as File
@@ -269,6 +280,33 @@ const handleBeforeUpload = async (data: { file: UploadFileInfo }) => {
   if (uploadStatus[fileName]) {
     message.warning(`文件 ${fileName} 已在上传列表中`)
     return false
+  }
+
+  // 如果是文件夹上传，先创建文件夹结构
+  const relativePath = (file as any).webkitRelativePath || ''
+  if (relativePath) {
+    const folders = relativePath.split('/').slice(0, -1)
+    if (folders.length > 0) {
+      try {
+        let currentPath = fileStore.currentPathString || ''
+        for (const folder of folders) {
+          if (!folder) continue
+          currentPath = currentPath ? `${currentPath}/${folder}` : folder
+          try {
+            await fileStore.createNewFolder(currentPath)
+          } catch (error: any) {
+            // 如果文件夹已存在，继续处理
+            if (!error.message?.includes('已存在')) {
+              throw error
+            }
+          }
+        }
+      } catch (error) {
+        console.error('创建文件夹结构失败:', error)
+        message.error('创建文件夹结构失败')
+        return false
+      }
+    }
   }
 
   // 添加到上传状态和队列
@@ -316,18 +354,65 @@ const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
 
   const fileName = file.name
   const relativePath = (file as any).webkitRelativePath || ''
-  const path = relativePath.split('/').slice(0, -1).join('/')
-  const fullPath = fileStore.currentPathString
-    ? `${fileStore.currentPathString}/${path}`
-    : path
+  const folderPath = relativePath.split('/')
+  
+  // 检查文件是否已存在
+  if (uploadStatus[fileName]) {
+    message.warning(`文件 ${fileName} 已在上传列表中`)
+    return
+  }
 
-  await handleBeforeUpload({ 
-    file: {
-      ...file,
-      file: file.file,
-      name: fileName
+  // 如果是文件夹内的文件
+  if (folderPath.length > 1) {
+    try {
+      // 构建完整的文件夹路径
+      let currentPath = fileStore.currentPathString || ''
+      const folders = folderPath.slice(0, -1) // 去掉文件名，只保留文件夹路径
+      
+      // 逐级创建文件夹
+      for (let i = 0; i < folders.length; i++) {
+        const folder = folders[i]
+        if (!folder) continue
+        
+        // 计算当前层级的完整路径
+        if (currentPath) {
+          currentPath = `${currentPath}/${folder}`
+        } else {
+          currentPath = folder
+        }
+
+        try {
+          // 尝试创建文件夹
+          await fileStore.createNewFolder(currentPath)
+        } catch (error: any) {
+          // 如果文件夹已存在，继续处理
+          if (!error.message?.includes('已存在')) {
+            throw error
+          }
+        }
+      }
+    } catch (error) {
+      console.error('创建文件夹结构失败:', error)
+      message.error('创建文件夹结构失败')
+      return
     }
-  })
+  }
+
+  // 添加到上传状态和队列
+  uploadStatus[fileName] = {
+    progress: 0,
+    status: 'waiting',
+    size: file.file?.size,
+    file: file.file as File,
+    startTime: Date.now()
+  }
+  uploadQueue.value.push(fileName)
+  
+  // 开始上传
+  processUploadQueue()
+
+  // 调用上传完成回调
+  options.onFinish?.()
 }
 
 // 处理上传变化
@@ -345,10 +430,30 @@ const doUploadFile = async (fileName: string, file: File) => {
   status.speed = 0
 
   try {
+    // 获取文件的相对路径
+    const relativePath = (file as any).webkitRelativePath || ''
+    let path = fileStore.currentPathString || ''
+    
+    // 如果是文件夹上传（有相对路径），则构建完整路径
+    if (relativePath) {
+      const folderPath = relativePath.split('/').slice(0, -1).join('/')
+      path = path ? `${path}/${folderPath}` : folderPath
+    }
+
+    console.log('开始上传文件:', {
+      fileName,
+      relativePath,
+      path,
+      size: file.size,
+      override: uploadSettings.override
+    })
+
     await uploadFile({
       file: file,
-      path: fileStore.currentPathString,
+      path: path,
+      override: uploadSettings.override,
       onProgress: (progress: number) => {
+        console.log(`文件 ${fileName} 上传进度:`, progress)
         status.progress = progress
         // 计算上传速度
         const elapsedTime = (Date.now() - (status.startTime || 0)) / 1000
@@ -357,18 +462,21 @@ const doUploadFile = async (fileName: string, file: File) => {
         }
       },
       onSuccess: () => {
+        console.log(`文件 ${fileName} 上传完成`)
         status.status = 'finished'
         status.progress = 100
         message.success(`${fileName} 上传成功`)
         fileStore.fetchFiles()
       },
       onError: (error: string) => {
+        console.error(`文件 ${fileName} 上传失败:`, error)
         status.status = 'error'
         status.message = error
         message.error(`${fileName} 上传失败`)
       }
     })
   } catch (error) {
+    console.error(`文件 ${fileName} 上传出错:`, error)
     status.status = 'error'
     status.message = error instanceof Error ? error.message : '上传失败，请重试'
     message.error(`${fileName} 上传失败`)
@@ -656,6 +764,13 @@ const handleBreadcrumbClick = async (index: number) => {
     width: 100%;
     justify-content: flex-end;
   }
+}
+
+.upload-settings {
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  background-color: var(--n-card-color);
+  border-radius: 8px;
 }
 </style>
 

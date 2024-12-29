@@ -112,7 +112,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { FileInfo } from '@/api/file/file'
+import type { FileInfo } from '@/types/file'
 import { getDownloadUrl } from '@/api/file/file'
 import { useFileStore } from '@/stores/file'
 import {
@@ -127,6 +127,8 @@ import {
   CloseOutlined
 } from '@vicons/antd'
 import { createDiscreteApi } from 'naive-ui'
+import { useDialog, NCheckbox } from 'naive-ui'
+import { h } from 'vue'
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 const fileStore = useFileStore()
@@ -138,6 +140,7 @@ const props = defineProps<{
 const isHovered = ref(false)
 const showPreview = ref(false)
 const previewContent = ref('')
+const forceDelete = ref(false)
 
 // 获取文件图标
 const getFileIcon = (fileName: string) => {
@@ -221,15 +224,35 @@ const handleDownload = () => {
 
 // 处理删除
 const handleDelete = async () => {
-  dialog.warning({
-    title: '确认删除',
-    content: `确定要删除 ${props.file.fileName} 吗？`,
-    positiveText: '确定',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      await fileStore.removeFile(props.file.filePath)
-    }
-  })
+  if (props.file.isDir) {
+    dialog.warning({
+      title: '确认删除',
+      content: () => {
+        return h('div', [
+          h('p', `确定要删除文件夹 ${props.file.fileName} 吗？`),
+          h(NCheckbox, {
+            checked: forceDelete.value,
+            onUpdateChecked: (checked) => forceDelete.value = checked
+          }, { default: () => '强制删除（删除文件夹及其所有内容）' })
+        ])
+      },
+      positiveText: '确定',
+      negativeText: '取消',
+      onPositiveClick: async () => {
+        await fileStore.removeFile(props.file.filePath, forceDelete.value)
+      }
+    })
+  } else {
+    dialog.warning({
+      title: '确认删除',
+      content: `确定要删除文件 ${props.file.fileName} 吗？`,
+      positiveText: '确定',
+      negativeText: '取消',
+      onPositiveClick: async () => {
+        await fileStore.removeFile(props.file.filePath)
+      }
+    })
+  }
 }
 </script>
 
