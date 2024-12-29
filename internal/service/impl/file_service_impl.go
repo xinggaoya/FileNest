@@ -2,14 +2,19 @@ package impl
 
 import (
 	"FileNest/common/glog"
+	"FileNest/internal/cache"
 	"FileNest/internal/consts"
 	"FileNest/internal/model"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 /**
@@ -56,27 +61,48 @@ func (h *FileServiceImpl) CreateDir(path string) error {
 	return nil
 }
 
-// GetFileList 获取文件列表
+// GetFileList 获取文件列表（带缓存）
 func (s *FileServiceImpl) GetFileList(path string) ([]model.FileInfo, error) {
 	glog.Infof("开始获取文件列表，路径: %s", path)
 
-	// 确保路径存在
+	// 尝试从缓存获取
+	cacheKey := cache.FileListKey(path)
+	if cached, err := cache.Get(cacheKey); err == nil {
+		var files []model.FileInfo
+		if err := json.Unmarshal([]byte(cached), &files); err == nil {
+			glog.Infof("从缓存获取文件列表成功，路径: %s", path)
+			return files, nil
+		}
+	}
+
+	// 从文件系统获取
+	files, err := s.getFileListFromFS(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新缓存
+	if cacheData, err := json.Marshal(files); err == nil {
+		cache.Set(cacheKey, cacheData, time.Duration(cache.FileListExpiration)*time.Second)
+	}
+
+	return files, nil
+}
+
+// getFileListFromFS 从文件系统获取文件列表
+func (s *FileServiceImpl) getFileListFromFS(path string) ([]model.FileInfo, error) {
 	absPath := filepath.Join(consts.UploadDir, path)
-	glog.Infof("完整路径: %s", absPath)
+	glog.Infof("从文件系统获取文件列表，完整路径: %s", absPath)
 
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		glog.Errorf("路径不存在: %s", absPath)
 		return nil, fmt.Errorf("路径不存在: %s", path)
 	}
 
-	// 读取目录内容
 	entries, err := os.ReadDir(absPath)
 	if err != nil {
-		glog.Errorf("读取目录失败: %s", err)
 		return nil, fmt.Errorf("读取目录失败: %s", err)
 	}
 
-	// 构建文件列表
 	var files []model.FileInfo
 	for _, entry := range entries {
 		info, err := entry.Info()
@@ -96,207 +122,277 @@ func (s *FileServiceImpl) GetFileList(path string) ([]model.FileInfo, error) {
 		files = append(files, fileInfo)
 	}
 
-	glog.Infof("成功获取文件列表，共 %d 个文件", len(files))
 	return files, nil
 }
 
-// DeleteFile 删除文件或文件夹
-func (h *FileServiceImpl) DeleteFile(path string, force bool) error {
-	glog.Infof("开始删除文件或文件夹，路径: %s, 强制删除: %v", path, force)
-
-	// 规范化路径
-	path = filepath.Clean(path)
-	if path == "." {
-		path = ""
-	}
-
-	// 构建完整的路径
-	fullPath := filepath.Join(consts.UploadDir, path)
-	glog.Infof("目标路径: %s", fullPath)
-
-	// 检查路径是否存在
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			glog.Infof("路径不存在，无需删除: %s", fullPath)
-			return nil
-		}
-		glog.Errorf("检查路径状态失败: %s", err)
-		return fmt.Errorf("检查路径状态失败: %s", err)
-	}
-
-	// 根据类型选择删除方法
-	if info.IsDir() {
-		// 检查目录是否为空
-		entries, err := os.ReadDir(fullPath)
-		if err != nil {
-			glog.Errorf("读取目录失败: %s", err)
-			return fmt.Errorf("读取目录失败: %s", err)
-		}
-		if len(entries) > 0 && !force {
-			glog.Errorf("目录不为空且未指定强制删除: %s", fullPath)
-			return fmt.Errorf("目录不为空，如需删除请勾选\"强制删除\"选项")
-		}
-		if force {
-			err = os.RemoveAll(fullPath) // 使用 RemoveAll 递归删除目录及其内容
-		} else {
-			err = os.Remove(fullPath) // 使用 Remove 删除空目录
-		}
-	} else {
-		err = os.Remove(fullPath) // 删除文件
-	}
-
-	if err != nil {
-		glog.Errorf("删除失败: %s", err)
-		return fmt.Errorf("删除失败: %s", err)
-	}
-
-	glog.Infof("删除成功: %s", fullPath)
-	return nil
-}
-
-// UploadFile 上传文件
-func (h *FileServiceImpl) UploadFile(path, fileName string, totalChunks int, override bool) error {
-	glog.Infof("开始上传文件，路径: %s, 文件名: %s, 是否覆盖: %v", path, fileName, override)
-
-	// 规范化路径
-	path = filepath.Clean(path)
-	if path == "." {
-		path = ""
-	}
-
-	// 构建完整的文件路径
-	outFilePath := filepath.Join(consts.UploadDir, path, fileName)
-	glog.Infof("目标文件路径: %s", outFilePath)
-
-	// 创建目标目录
-	targetDir := filepath.Dir(outFilePath)
-	if err := os.MkdirAll(targetDir, os.ModePerm); err != nil {
-		glog.Errorf("创建目标目录失败: %s, 路径: %s", err, targetDir)
-		return fmt.Errorf("创建目标目录失败: %s", err)
-	}
-
-	// 检查目标目录是否有写入权限
-	if err := h.checkDirectoryWritePermission(targetDir); err != nil {
-		glog.Errorf("目标目录无写入权限: %s, 路径: %s", err, targetDir)
-		return fmt.Errorf("目标目录无写入权限: %s", err)
-	}
-
-	// 检查文件是否已存在
-	if _, err := os.Stat(outFilePath); err == nil {
-		if !override {
-			glog.Errorf("文件已存在且不允许覆盖: %s", outFilePath)
-			return fmt.Errorf("文件已存在: %s", fileName)
-		}
-		// 如果允许覆盖，删除已存在的文件
-		if err := os.Remove(outFilePath); err != nil {
-			glog.Errorf("删除已存在文件失败: %s", err)
-			return fmt.Errorf("删除已存在文件失败: %s", err)
-		}
-		glog.Infof("已删除已存在的文件: %s", outFilePath)
-	} else if !os.IsNotExist(err) {
-		glog.Errorf("检查文件状态失败: %s", err)
-		return fmt.Errorf("检查文件状态失败: %s", err)
-	}
-
-	glog.Infof("文件上传前置检查完成")
-	return nil
-}
-
-// checkDirectoryWritePermission 检查目录是否有写入权限
-func (h *FileServiceImpl) checkDirectoryWritePermission(dir string) error {
-	// 创建临时文件
-	tempFile := filepath.Join(dir, ".write_test")
-	f, err := os.Create(tempFile)
-	if err != nil {
-		return err
-	}
-	f.Close()
-
-	// 删除临时文件
-	return os.Remove(tempFile)
-}
-
-// GetFileStats 获取文件统计信息
+// GetFileStats 获取文件统计信息（带缓存）
 func (s *FileServiceImpl) GetFileStats(path string) (*model.FileStats, error) {
 	glog.Infof("开始获取文件统计信息，路径: %s", path)
 
-	// 确保路径存在
-	absPath := filepath.Join(consts.UploadDir, path)
-	glog.Infof("完整路径: %s", absPath)
+	// 尝试从缓存获取
+	cacheKey := cache.FileStatsKey(path)
+	if cached, err := cache.Get(cacheKey); err == nil {
+		var stats model.FileStats
+		if err := json.Unmarshal([]byte(cached), &stats); err == nil {
+			glog.Infof("从缓存获取文件统计信息成功，路径: %s", path)
+			return &stats, nil
+		}
+	}
 
+	// 从文件系统获取
+	stats, err := s.getFileStatsFromFS(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新缓存
+	if cacheData, err := json.Marshal(stats); err == nil {
+		cache.Set(cacheKey, cacheData, time.Duration(cache.FileStatsExpiration)*time.Second)
+	}
+
+	return stats, nil
+}
+
+// getFileStatsFromFS 从文件系统获取文件统计信息
+func (s *FileServiceImpl) getFileStatsFromFS(path string) (*model.FileStats, error) {
+	absPath := filepath.Join(consts.UploadDir, path)
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		glog.Errorf("路径不存在: %s", absPath)
 		return nil, fmt.Errorf("路径不存在: %s", path)
 	}
 
 	stats := &model.FileStats{}
-
-	// 遍历目录
 	err := filepath.Walk(absPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if info.IsDir() {
-			if path != absPath { // 不统计根目录
+			if path != absPath {
 				stats.TotalFolders++
 			}
 		} else {
 			stats.TotalFiles++
 			stats.TotalSize += info.Size()
 		}
-
 		return nil
 	})
 
 	if err != nil {
-		glog.Errorf("统计文件信息失败: %s", err)
 		return nil, fmt.Errorf("统计文件信息失败: %s", err)
 	}
 
-	glog.Infof("成功获取文件统计信息: %+v", stats)
 	return stats, nil
 }
 
-// SearchFiles 搜索文件
+// SearchFiles 搜索文件（带缓存）
 func (s *FileServiceImpl) SearchFiles(keyword string) ([]model.FileInfo, error) {
-	glog.Infof("开始搜索文件，词: %s", keyword)
+	glog.Infof("开始搜索文件，关键词: %s", keyword)
 
-	var results []model.FileInfo
+	ctx := context.Background()
+	redisClient := cache.GetRedisClient()
+
+	// 记录搜索历史
+	score := float64(time.Now().Unix())
+	redisClient.ZAdd(ctx, cache.SearchHistoryKey, redis.Z{
+		Score:  score,
+		Member: keyword,
+	})
+	// 只保留最近 10 条记录
+	redisClient.ZRemRangeByRank(ctx, cache.SearchHistoryKey, 0, -11)
+
+	// 尝试从缓存获取搜索结果
+	cacheKey := cache.SearchKey(keyword)
+	if cached, err := cache.Get(cacheKey); err == nil {
+		var files []model.FileInfo
+		if err := json.Unmarshal([]byte(cached), &files); err == nil {
+			glog.Infof("从缓存获取搜索结果成功，关键词: %s", keyword)
+			return files, nil
+		}
+	}
+
+	// 执行搜索
+	files, err := s.searchFilesInFS(keyword)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新缓存
+	if cacheData, err := json.Marshal(files); err == nil {
+		cache.Set(cacheKey, cacheData, time.Duration(cache.SearchExpiration)*time.Second)
+	}
+
+	return files, nil
+}
+
+// searchFilesInFS 在文件系统中搜索文件
+func (s *FileServiceImpl) searchFilesInFS(keyword string) ([]model.FileInfo, error) {
+	var files []model.FileInfo
 	err := filepath.Walk(consts.UploadDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// 如果文件名包含关键词
+		// 检查文件名是否匹配关键词
 		if strings.Contains(strings.ToLower(info.Name()), strings.ToLower(keyword)) {
-			relativePath, err := filepath.Rel(consts.UploadDir, path)
+			relPath, err := filepath.Rel(consts.UploadDir, path)
 			if err != nil {
-				glog.Errorf("获取相对路径失败: %s", err)
-				return nil
+				return err
 			}
 
 			fileInfo := model.FileInfo{
 				FileName: info.Name(),
-				FilePath: relativePath,
+				FilePath: relPath,
 				FileSize: info.Size(),
 				FileType: filepath.Ext(info.Name()),
 				IsDir:    info.IsDir(),
 				ModTime:  info.ModTime().Format(time.DateTime),
 			}
-			results = append(results, fileInfo)
+			files = append(files, fileInfo)
 		}
 		return nil
 	})
 
 	if err != nil {
-		glog.Errorf("搜索文件失败: %s", err)
 		return nil, fmt.Errorf("搜索文件失败: %s", err)
 	}
 
-	glog.Infof("搜索完成，找到 %d 个匹配文件", len(results))
-	return results, nil
+	return files, nil
+}
+
+// DeleteFile 删除文件（清除相关缓存）
+func (s *FileServiceImpl) DeleteFile(path string, force bool) error {
+	glog.Infof("开始删除文件，路径: %s, 强制删除: %v", path, force)
+
+	// 删除文件
+	err := s.deleteFileFromFS(path, force)
+	if err != nil {
+		return err
+	}
+
+	// 清除相关缓存
+	s.clearFileRelatedCache(path)
+	return nil
+}
+
+// deleteFileFromFS 从文件系统删除文件
+func (s *FileServiceImpl) deleteFileFromFS(path string, force bool) error {
+	path = filepath.Clean(path)
+	fullPath := filepath.Join(consts.UploadDir, path)
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("检查路径状态失败: %s", err)
+	}
+
+	if info.IsDir() {
+		entries, err := os.ReadDir(fullPath)
+		if err != nil {
+			return fmt.Errorf("读取目录失败: %s", err)
+		}
+		if len(entries) > 0 && !force {
+			return fmt.Errorf("目录不为空，如需删除请勾选\"强制删除\"选项")
+		}
+		if force {
+			err = os.RemoveAll(fullPath)
+		} else {
+			err = os.Remove(fullPath)
+		}
+	} else {
+		err = os.Remove(fullPath)
+	}
+
+	if err != nil {
+		return fmt.Errorf("删除失败: %s", err)
+	}
+
+	return nil
+}
+
+// clearFileRelatedCache 清除文件相关的所有缓存
+func (s *FileServiceImpl) clearFileRelatedCache(path string) {
+	// 获取需要清除的缓存键
+	cacheKeys := cache.GetFileCacheKeys(path)
+
+	// 清除直接相关的缓存
+	if len(cacheKeys) > 0 {
+		cache.Del(cacheKeys...)
+	}
+
+	// 清除目录相关的缓存模式
+	patterns := cache.GetDirCachePatterns(path)
+	for _, pattern := range patterns {
+		cache.DelByPattern(pattern)
+	}
+}
+
+// UploadFile 上传文件（更新缓存）
+func (s *FileServiceImpl) UploadFile(path, fileName string, totalChunks int, override bool) error {
+	glog.Infof("开始上传文件，路径: %s, 文件名: %s", path, fileName)
+
+	// 设置上传进度
+	progressKey := cache.UploadProgressKey(path, fileName)
+	cache.HSet(progressKey,
+		"status", "uploading",
+		"progress", "0",
+		"total_chunks", totalChunks,
+	)
+	cache.Expire(progressKey, time.Hour)
+
+	// 执行上传
+	err := s.uploadFileToFS(path, fileName, override)
+	if err != nil {
+		// 更新失败状态
+		cache.HSet(progressKey, "status", "error", "error", err.Error())
+		return err
+	}
+
+	// 清除相关缓存
+	s.clearFileRelatedCache(filepath.Join(path, fileName))
+	return nil
+}
+
+// uploadFileToFS 上传文件到文件系统
+func (s *FileServiceImpl) uploadFileToFS(path, fileName string, override bool) error {
+	path = filepath.Clean(path)
+	if path == "." {
+		path = ""
+	}
+
+	outFilePath := filepath.Join(consts.UploadDir, path, fileName)
+	targetDir := filepath.Dir(outFilePath)
+
+	if err := os.MkdirAll(targetDir, os.ModePerm); err != nil {
+		return fmt.Errorf("创建目标目录失败: %s", err)
+	}
+
+	if err := s.checkDirectoryWritePermission(targetDir); err != nil {
+		return fmt.Errorf("目标目录无写入权限: %s", err)
+	}
+
+	if _, err := os.Stat(outFilePath); err == nil {
+		if !override {
+			return fmt.Errorf("文件已存在: %s", fileName)
+		}
+		if err := os.Remove(outFilePath); err != nil {
+			return fmt.Errorf("删除已存在文件失败: %s", err)
+		}
+	}
+
+	return nil
+}
+
+// checkDirectoryWritePermission 检查目录是否有写入权限
+func (s *FileServiceImpl) checkDirectoryWritePermission(dir string) error {
+	tempFile := filepath.Join(dir, ".write_test")
+	f, err := os.Create(tempFile)
+	if err != nil {
+		return err
+	}
+	f.Close()
+	return os.Remove(tempFile)
 }
 
 // AddFavorite 添加收藏
