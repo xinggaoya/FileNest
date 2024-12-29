@@ -55,6 +55,14 @@
             </template>
             新建文件夹
           </n-button>
+          <n-button quaternary size="large" @click="$emit('showConfig')">
+            <template #icon>
+              <n-icon>
+                <SettingOutlined />
+              </n-icon>
+            </template>
+            上传配置
+          </n-button>
         </div>
       </div>
     </div>
@@ -231,7 +239,8 @@ import {
   UploadOutlined,
   RightOutlined,
   SearchOutlined,
-  FileOutlined
+  FileOutlined,
+  SettingOutlined
 } from '@vicons/antd'
 import { uploadFile } from '@/api/file/file'
 import { useFileStore } from '@/stores/file'
@@ -569,6 +578,8 @@ const handleBreadcrumbClick = async (index: number) => {
     loadingIndex.value = -1
   }
 }
+
+defineEmits(['showConfig'])
 </script>
 
 <style scoped>
@@ -804,4 +815,3 @@ const handleBreadcrumbClick = async (index: number) => {
   }
 }
 </style>
-

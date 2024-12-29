@@ -34,6 +34,8 @@ type FileService interface {
 	CopyFile(srcPath string, destPath string) error
 	// MoveFile 移动文件或文件夹
 	MoveFile(srcPath string, destPath string) error
+	// ClearFileCache 清除缓存
+	ClearFileCache(path string) error
 }
 
 func NewFileService() FileService {

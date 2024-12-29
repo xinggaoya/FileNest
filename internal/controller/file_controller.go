@@ -5,9 +5,12 @@ import (
 	"FileNest/internal/consts"
 	"FileNest/internal/service"
 	"FileNest/internal/utils/response"
+	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -151,18 +154,174 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 	})
 }
 
-// checkDirectoryWritePermission 检查目录是否有写入权限
-func (h *FileController) checkDirectoryWritePermission(dir string) error {
-	// 创建临时文件
-	tempFile := filepath.Join(dir, ".write_test")
-	f, err := os.Create(tempFile)
+// UploadChunk 上传文件分块
+func (h *FileController) UploadChunk(ctx *gin.Context) {
+	file, err := ctx.FormFile("file")
 	if err != nil {
-		return err
+		glog.Errorf("获取上传文件失败: %s", err)
+		response.Error(ctx, "获取上传文件失败")
+		return
 	}
-	f.Close()
 
-	// 删除临时文件
-	return os.Remove(tempFile)
+	fileName := ctx.PostForm("fileName")
+	if fileName == "" {
+		fileName = file.Filename
+	}
+
+	path := ctx.PostForm("path")
+	override := ctx.PostForm("override") == "true"
+	chunkIndex := ctx.PostForm("chunkIndex")
+	totalChunks := ctx.PostForm("totalChunks")
+
+	// 转换chunkIndex和totalChunks为整数
+	chunkIndexInt, err := strconv.Atoi(chunkIndex)
+	if err != nil {
+		glog.Errorf("分块索引格式错误: %s", err)
+		response.Error(ctx, "分块索引格式错误")
+		return
+	}
+
+	totalChunksInt, err := strconv.Atoi(totalChunks)
+	if err != nil {
+		glog.Errorf("总分块数格式错误: %s", err)
+		response.Error(ctx, "总分块数格式错误")
+		return
+	}
+
+	glog.Infof("收到文件分块上传请求，文件名: %s, 路径: %s, 是否覆盖: %v, 分块索引: %d, 总分块数: %d",
+		fileName, path, override, chunkIndexInt, totalChunksInt)
+
+	// 规范化路径
+	path = filepath.Clean(path)
+	if path == "." {
+		path = ""
+	}
+
+	// 确保临时目录存在
+	tempDir := filepath.Join(consts.TempDir, path, fileName)
+	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
+		glog.Errorf("创建临时目录失败: %s, 路径: %s", err, tempDir)
+		response.Error(ctx, "创建临时目录失败")
+		return
+	}
+
+	// 保存分块文件
+	chunkPath := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", chunkIndexInt))
+	if err = ctx.SaveUploadedFile(file, chunkPath); err != nil {
+		glog.Errorf("保存分块文件失败: %s, 路径: %s", err, chunkPath)
+		response.Error(ctx, "保存分块文件失败")
+		return
+	}
+
+	response.Success(ctx, map[string]interface{}{
+		"chunkIndex": chunkIndexInt,
+		"path":       filepath.Join(path, fileName),
+	})
+}
+
+// MergeChunks 合并文件分块
+func (h *FileController) MergeChunks(ctx *gin.Context) {
+	var req struct {
+		FileName    string `json:"fileName"`
+		Path        string `json:"path"`
+		TotalChunks int    `json:"totalChunks"`
+		Override    bool   `json:"override"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		glog.Errorf("解析请求参数失败: %s", err)
+		response.Error(ctx, "解析请求参数失败")
+		return
+	}
+
+	glog.Infof("收到合并文件请求，文件名: %s, 路径: %s, 总分块数: %d, 是否覆盖: %v",
+		req.FileName, req.Path, req.TotalChunks, req.Override)
+
+	// 规范化路径
+	req.Path = filepath.Clean(req.Path)
+	if req.Path == "." {
+		req.Path = ""
+	}
+
+	// 检查文件上传前置条件
+	if err := h.fileService.UploadFile(req.Path, req.FileName, req.TotalChunks, req.Override); err != nil {
+		glog.Errorf("文件上传前置检查失败: %s", err)
+		response.Error(ctx, err.Error())
+		return
+	}
+
+	// 确保目标目录存在
+	uploadPath := filepath.Join(consts.UploadDir, req.Path)
+	if err := os.MkdirAll(uploadPath, os.ModePerm); err != nil {
+		glog.Errorf("创建目标目录失败: %s, 路径: %s", err, uploadPath)
+		response.Error(ctx, "创建目标目录失败")
+		return
+	}
+
+	// 检查目标目录是否有写入权限
+	if err := h.checkDirectoryWritePermission(uploadPath); err != nil {
+		glog.Errorf("目标目录无写入权限: %s, 路径: %s", err, uploadPath)
+		response.Error(ctx, "目标目录无写入权限")
+		return
+	}
+
+	// 合并文件
+	tempDir := filepath.Join(consts.TempDir, req.Path, req.FileName)
+	targetFile := filepath.Join(uploadPath, req.FileName)
+
+	// 创建目标文件
+	outFile, err := os.Create(targetFile)
+	if err != nil {
+		glog.Errorf("创建目标文件失败: %s, 路径: %s", err, targetFile)
+		response.Error(ctx, "创建目标文件失败")
+		return
+	}
+	defer outFile.Close()
+
+	// 按顺序合并分块
+	for i := 0; i < req.TotalChunks; i++ {
+		chunkPath := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", i))
+
+		// 读取分块文件
+		chunkFile, err := os.Open(chunkPath)
+		if err != nil {
+			glog.Errorf("打开分块文件失败: %s, 路径: %s", err, chunkPath)
+			response.Error(ctx, "打开分块文件失败")
+			return
+		}
+
+		// 复制分块内容到目标文件
+		if _, err = io.Copy(outFile, chunkFile); err != nil {
+			chunkFile.Close()
+			glog.Errorf("复制分块内容失败: %s, 路径: %s", err, chunkPath)
+			response.Error(ctx, "复制分块内容失败")
+			return
+		}
+		chunkFile.Close()
+
+		// 删除分块文件
+		if err = os.Remove(chunkPath); err != nil {
+			glog.Warnf("删除分块文件失败: %s, 路径: %s", err, chunkPath)
+		}
+	}
+
+	// 清理临时目录
+	if err := os.RemoveAll(tempDir); err != nil {
+		glog.Warnf("清理临时目录失败: %s, 路径: %s", err, tempDir)
+	}
+
+	// 清除相关缓存
+	h.fileService.ClearFileCache(req.Path)
+
+	// 设置文件权限
+	if err = os.Chmod(targetFile, 0644); err != nil {
+		glog.Warnf("设置文件权限失败: %s, 路径: %s", err, targetFile)
+	}
+
+	glog.Infof("文件合并成功: %s", targetFile)
+	response.Success(ctx, map[string]string{
+		"path": filepath.Join(req.Path, req.FileName),
+	})
 }
 
 // GetFileStats 获取文件统计信息
@@ -329,4 +488,18 @@ func (h *FileController) MoveFile(ctx *gin.Context) {
 
 	glog.Info("移动成功")
 	response.Success(ctx, nil)
+}
+
+// checkDirectoryWritePermission 检查目录是否有写入权限
+func (h *FileController) checkDirectoryWritePermission(dir string) error {
+	// 创建临时文件
+	tempFile := filepath.Join(dir, ".write_test")
+	f, err := os.Create(tempFile)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	// 删除临时文件
+	return os.Remove(tempFile)
 }

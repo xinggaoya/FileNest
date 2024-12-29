@@ -24,9 +24,12 @@ declare module 'vue' {
     NDrawer: typeof import('naive-ui')['NDrawer']
     NDrawerContent: typeof import('naive-ui')['NDrawerContent']
     NEmpty: typeof import('naive-ui')['NEmpty']
+    NForm: typeof import('naive-ui')['NForm']
+    NFormItem: typeof import('naive-ui')['NFormItem']
     NIcon: typeof import('naive-ui')['NIcon']
     NInput: typeof import('naive-ui')['NInput']
     NInputGroup: typeof import('naive-ui')['NInputGroup']
+    NInputNumber: typeof import('naive-ui')['NInputNumber']
     NLoadingBarProvider: typeof import('naive-ui')['NLoadingBarProvider']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NModal: typeof import('naive-ui')['NModal']
@@ -36,6 +39,7 @@ declare module 'vue' {
     NProgress: typeof import('naive-ui')['NProgress']
     NSpace: typeof import('naive-ui')['NSpace']
     NSpin: typeof import('naive-ui')['NSpin']
+    NSwitch: typeof import('naive-ui')['NSwitch']
     NTabPane: typeof import('naive-ui')['NTabPane']
     NTabs: typeof import('naive-ui')['NTabs']
     NText: typeof import('naive-ui')['NText']
@@ -43,5 +47,6 @@ declare module 'vue' {
     NUploadDragger: typeof import('naive-ui')['NUploadDragger']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    UploadConfig: typeof import('./src/components/UploadConfig.vue')['default']
   }
 }

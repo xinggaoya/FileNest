@@ -23,6 +23,7 @@
             </template>
             刷新
           </n-button>
+          <n-button quaternary size="large" @click="showUploadConfig">上传配置</n-button>
         </n-button-group>
       </div>
     </div>
@@ -32,7 +33,7 @@
       <n-card class="content-card">
         <!-- 头部导航和搜索 -->
         <div class="content-header">
-          <home-header />
+          <home-header @showConfig="showUploadConfig" />
         </div>
         
         <!-- 文件列表区域 -->
@@ -50,22 +51,31 @@
         </div>
       </n-card>
     </div>
+    <upload-config ref="uploadConfigRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { h, onMounted, ref } from 'vue'
 import HomeHeader from '@/components/home/HomeHeader.vue'
 import FileItem from '@/components/file/FileItem.vue'
 import FileStats from '@/components/home/FileStats.vue'
 import { useFileStore } from '@/stores/file'
+import { useRouter } from 'vue-router'
 import {
   AppstoreOutlined,
   UnorderedListOutlined,
   ReloadOutlined
 } from '@vicons/antd'
+import UploadConfig from '@/components/UploadConfig.vue'
 
+const router = useRouter()
 const fileStore = useFileStore()
+const uploadConfigRef = ref()
+
+const showUploadConfig = () => {
+  uploadConfigRef.value?.show()
+}
 
 onMounted(() => {
   fileStore.fetchFiles()

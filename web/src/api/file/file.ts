@@ -1,6 +1,7 @@
 import { get, post, del, download } from '@/utils/request'
 import type { AxiosProgressEvent } from 'axios'
 import type { FileInfo, Favorite, FileStats } from '@/types/file'
+import { uploadConfig } from '@/config/upload'
 
 export interface UploadParams {
   indexChunk: number
@@ -44,24 +45,41 @@ export const downloadFile = (path: string) => {
 }
 
 /**
- * 上传文件
+ * 上传文件分块
  */
-export const uploadFile = async ({
+export const uploadFileChunk = async ({
   file,
+  chunk,
   path,
+  fileName,
+  chunkIndex,
+  totalChunks,
   override = false,
   onProgress,
   onSuccess,
   onError
-}: UploadFileParams) => {
+}: {
+  file: File
+  chunk: Blob
+  path: string
+  fileName: string
+  chunkIndex: number
+  totalChunks: number
+  override?: boolean
+  onProgress?: (progress: number) => void
+  onSuccess?: () => void
+  onError?: (error: string) => void
+}) => {
   const formData = new FormData()
-  formData.append('file', file)
-  formData.append('fileName', file.name)
+  formData.append('file', chunk)
+  formData.append('fileName', fileName)
   formData.append('path', path)
   formData.append('override', override.toString())
+  formData.append('chunkIndex', chunkIndex.toString())
+  formData.append('totalChunks', totalChunks.toString())
 
   try {
-    await post('/file/upload', formData, {
+    await post('/file/upload-chunk', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
@@ -73,6 +91,160 @@ export const uploadFile = async ({
       }
     })
     onSuccess?.()
+  } catch (error: any) {
+    onError?.(error.response?.data?.message || '上传失败')
+  }
+}
+
+/**
+ * 合并文件分块
+ */
+export const mergeFileChunks = async ({
+  path,
+  fileName,
+  totalChunks,
+  override = false,
+  onSuccess,
+  onError
+}: {
+  path: string
+  fileName: string
+  totalChunks: number
+  override?: boolean
+  onSuccess?: () => void
+  onError?: (error: string) => void
+}) => {
+  try {
+    await post('/file/merge-chunks', {
+      fileName,
+      path,
+      totalChunks,
+      override
+    })
+    onSuccess?.()
+  } catch (error: any) {
+    onError?.(error.response?.data?.message || '合并文件失败')
+  }
+}
+
+/**
+ * 上传文件
+ */
+export const uploadFile = async ({
+  file,
+  path,
+  override = false,
+  onProgress,
+  onSuccess,
+  onError
+}: UploadFileParams) => {
+  // 如果文件小于阈值或未启用分块上传，直接上传
+  if (!uploadConfig.enableChunked || file.size <= uploadConfig.chunkThreshold) {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('fileName', file.name)
+    formData.append('path', path)
+    formData.append('override', override.toString())
+
+    try {
+      await post('/file/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent: AxiosProgressEvent) => {
+          if (progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            onProgress?.(progress)
+          }
+        }
+      })
+      onSuccess?.()
+    } catch (error: any) {
+      onError?.(error.response?.data?.message || '上传失败')
+    }
+    return
+  }
+
+  // 文件分块
+  const totalChunks = Math.ceil(file.size / uploadConfig.chunkSize)
+  
+  try {
+    // 创建进度追踪器
+    const chunkProgress = new Array(totalChunks).fill(0)
+    const updateTotalProgress = () => {
+      const totalProgress = Math.round(
+        chunkProgress.reduce((acc, curr) => acc + curr, 0) / totalChunks
+      )
+      onProgress?.(totalProgress)
+    }
+
+    // 并发控制
+    let completedChunks = 0
+    
+    // 创建所有分块的上传任务
+    const uploadTasks = Array.from({ length: totalChunks }, (_, index) => {
+      const start = index * uploadConfig.chunkSize
+      const end = Math.min(start + uploadConfig.chunkSize, file.size)
+      const chunk = file.slice(start, end)
+      
+      return async () => {
+        await uploadFileChunk({
+          file,
+          chunk,
+          path,
+          fileName: file.name,
+          chunkIndex: index,
+          totalChunks,
+          override,
+          onProgress: (progress) => {
+            chunkProgress[index] = progress
+            updateTotalProgress()
+          },
+          onSuccess: () => {
+            completedChunks++
+            chunkProgress[index] = 100
+            updateTotalProgress()
+          },
+          onError
+        })
+      }
+    })
+
+    // 执行分块上传
+    const executeUploadTasks = async () => {
+      const pendingTasks = [...uploadTasks]
+      const runningTasks = new Set<Promise<void>>()
+
+      while (pendingTasks.length > 0 || runningTasks.size > 0) {
+        // 填充运行中的任务，直到达到最大并发数
+        while (runningTasks.size < uploadConfig.maxConcurrent && pendingTasks.length > 0) {
+          const task = pendingTasks.shift()!
+          const promise = task().then(() => {
+            runningTasks.delete(promise)
+          })
+          runningTasks.add(promise)
+        }
+
+        if (runningTasks.size > 0) {
+          // 等待任意一个任务完成
+          await Promise.race(Array.from(runningTasks))
+        }
+      }
+    }
+
+    await executeUploadTasks()
+
+    // 所有分块上传完成后，请求合并文件
+    if (completedChunks === totalChunks) {
+      await mergeFileChunks({
+        path,
+        fileName: file.name,
+        totalChunks,
+        override,
+        onSuccess,
+        onError
+      })
+    }
   } catch (error: any) {
     onError?.(error.response?.data?.message || '上传失败')
   }

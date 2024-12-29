@@ -34,6 +34,8 @@ func Install(app *gin.Engine) {
 	file.GET("/favorites", fileController.GetFavorites)
 	file.POST("/create-folder", fileController.CreateFolder)
 	file.POST("/upload", fileController.UploadFile)
+	file.POST("/upload-chunk", fileController.UploadChunk)
+	file.POST("/merge-chunks", fileController.MergeChunks)
 	file.POST("/favorite", fileController.AddFavorite)
 	file.GET("/download", fileController.DownloadFile)
 	file.DELETE("/delete", fileController.DeleteFile)

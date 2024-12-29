@@ -469,6 +469,9 @@ func (h *FileServiceImpl) CreateFolder(path string) error {
 		return fmt.Errorf("创建文件夹失败: %s", err)
 	}
 
+	// 清除相关缓存
+	h.clearFileRelatedCache(path)
+
 	glog.Infof("文件夹创建成功: %s", folderPath)
 	return nil
 }
@@ -476,6 +479,116 @@ func (h *FileServiceImpl) CreateFolder(path string) error {
 // RemoveFile 删除文件（实际调用 DeleteFile 方法）
 func (h *FileServiceImpl) RemoveFile(path string, force bool) error {
 	return h.DeleteFile(path, force)
+}
+
+// CopyFile 复制文件或文件夹
+func (h *FileServiceImpl) CopyFile(srcPath string, destPath string) error {
+	glog.Infof("开始复制，源路径: %s, 目标路径: %s", srcPath, destPath)
+
+	srcFullPath := filepath.Join(consts.UploadDir, srcPath)
+	destFullPath := filepath.Join(consts.UploadDir, destPath)
+
+	// 检查源路径是否存在
+	srcInfo, err := os.Stat(srcFullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("源文件不存在: %s", srcPath)
+		}
+		return fmt.Errorf("获取源文件信息失败: %s", err)
+	}
+
+	// 检查目标文件是否已存在
+	if destInfo, err := os.Stat(destFullPath); err == nil {
+		// 如果目标是文件夹，则在目标文件夹中创建同名文件/文件夹
+		if destInfo.IsDir() {
+			destFullPath = filepath.Join(destFullPath, filepath.Base(srcPath))
+			destPath = filepath.Join(destPath, filepath.Base(srcPath))
+			// 再次检查是否存在
+			if _, err := os.Stat(destFullPath); err == nil {
+				return fmt.Errorf("目标路径已存在: %s", destPath)
+			}
+		} else {
+			return fmt.Errorf("目标路径已存在: %s", destPath)
+		}
+	}
+
+	// 确保目标目录存在
+	destDir := filepath.Dir(destFullPath)
+	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+		return fmt.Errorf("创建目标目录失败: %s", err)
+	}
+
+	if srcInfo.IsDir() {
+		// 复制目录
+		if err := h.copyDir(srcFullPath, destFullPath); err != nil {
+			return fmt.Errorf("复制目录失败: %s", err)
+		}
+	} else {
+		// 复制文件
+		if err := h.copyFileContent(srcFullPath, destFullPath); err != nil {
+			return fmt.Errorf("复制文件失败: %s", err)
+		}
+	}
+
+	// 清除源路径和目标路径相关的缓存
+	h.clearFileRelatedCache(srcPath)
+	h.clearFileRelatedCache(destPath)
+	h.clearFileRelatedCache(filepath.Dir(destPath))
+
+	glog.Infof("复制成功: %s -> %s", srcPath, destPath)
+	return nil
+}
+
+// MoveFile 移动文件或文件夹
+func (h *FileServiceImpl) MoveFile(srcPath string, destPath string) error {
+	glog.Infof("开始移动，源路径: %s, 目标路径: %s", srcPath, destPath)
+
+	srcFullPath := filepath.Join(consts.UploadDir, srcPath)
+	destFullPath := filepath.Join(consts.UploadDir, destPath)
+
+	// 检查源路径是否存在
+	if _, err := os.Stat(srcFullPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("源文件不存在: %s", srcPath)
+		}
+		return fmt.Errorf("获取源文件信息失败: %s", err)
+	}
+
+	// 检查目标文件是否已存在
+	if destInfo, err := os.Stat(destFullPath); err == nil {
+		// 如果目标是文件夹，则在目标文件夹中创建同名文件/文件夹
+		if destInfo.IsDir() {
+			destFullPath = filepath.Join(destFullPath, filepath.Base(srcPath))
+			destPath = filepath.Join(destPath, filepath.Base(srcPath))
+			// 再次检查是否存在
+			if _, err := os.Stat(destFullPath); err == nil {
+				return fmt.Errorf("目标路径已存在: %s", destPath)
+			}
+		} else {
+			return fmt.Errorf("目标路径已存在: %s", destPath)
+		}
+	}
+
+	// 确保目标目录存在
+	destDir := filepath.Dir(destFullPath)
+	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+		return fmt.Errorf("创建目标目录失败: %s", err)
+	}
+
+	// 执行移动
+	if err := os.Rename(srcFullPath, destFullPath); err != nil {
+		glog.Errorf("移动失败: %s", err)
+		return fmt.Errorf("移动失败: %s", err)
+	}
+
+	// 清除源路径和目标路径相关的缓存
+	h.clearFileRelatedCache(srcPath)
+	h.clearFileRelatedCache(filepath.Dir(srcPath))
+	h.clearFileRelatedCache(destPath)
+	h.clearFileRelatedCache(filepath.Dir(destPath))
+
+	glog.Infof("移动成功: %s -> %s", srcPath, destPath)
+	return nil
 }
 
 // RenameFile 重命名文件或文件夹
@@ -502,80 +615,12 @@ func (h *FileServiceImpl) RenameFile(oldPath string, newName string) error {
 		return fmt.Errorf("重命名失败: %s", err)
 	}
 
+	// 清除旧路径和新路径相关的缓存
+	h.clearFileRelatedCache(oldPath)
+	h.clearFileRelatedCache(newPath)
+	h.clearFileRelatedCache(parentDir)
+
 	glog.Infof("重命名成功: %s -> %s", oldPath, newPath)
-	return nil
-}
-
-// CopyFile 复制文件或文件夹
-func (h *FileServiceImpl) CopyFile(srcPath string, destPath string) error {
-	glog.Infof("开始复制，源路径: %s, 目标路径: %s", srcPath, destPath)
-
-	srcFullPath := filepath.Join(consts.UploadDir, srcPath)
-	destFullPath := filepath.Join(consts.UploadDir, destPath)
-
-	// 检查源路径是否存在
-	srcInfo, err := os.Stat(srcFullPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("源文件不存在: %s", srcPath)
-		}
-		return fmt.Errorf("获取源文件信息失败: %s", err)
-	}
-
-	// 检查目标路径是否已存在
-	if _, err := os.Stat(destFullPath); err == nil {
-		return fmt.Errorf("目标路径已存在: %s", destPath)
-	}
-
-	if srcInfo.IsDir() {
-		// 复制目录
-		if err := h.copyDir(srcFullPath, destFullPath); err != nil {
-			return fmt.Errorf("复制目录失败: %s", err)
-		}
-	} else {
-		// 复制文件
-		if err := h.copyFileContent(srcFullPath, destFullPath); err != nil {
-			return fmt.Errorf("复制文件失败: %s", err)
-		}
-	}
-
-	glog.Infof("复制成功: %s -> %s", srcPath, destPath)
-	return nil
-}
-
-// MoveFile 移动文件或文件夹
-func (h *FileServiceImpl) MoveFile(srcPath string, destPath string) error {
-	glog.Infof("开始移动，源路径: %s, 目标路径: %s", srcPath, destPath)
-
-	srcFullPath := filepath.Join(consts.UploadDir, srcPath)
-	destFullPath := filepath.Join(consts.UploadDir, destPath)
-
-	// 检查源路径是否存在
-	if _, err := os.Stat(srcFullPath); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("源文件不存在: %s", srcPath)
-		}
-		return fmt.Errorf("获取源文件信息失败: %s", err)
-	}
-
-	// 检查目标路径是否已存在
-	if _, err := os.Stat(destFullPath); err == nil {
-		return fmt.Errorf("目标路径已存在: %s", destPath)
-	}
-
-	// 确保目标目录存在
-	destDir := filepath.Dir(destFullPath)
-	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
-		return fmt.Errorf("创建目标目录失败: %s", err)
-	}
-
-	// 执行移动
-	if err := os.Rename(srcFullPath, destFullPath); err != nil {
-		glog.Errorf("移动失败: %s", err)
-		return fmt.Errorf("移动失败: %s", err)
-	}
-
-	glog.Infof("移动成功: %s -> %s", srcPath, destPath)
 	return nil
 }
 
@@ -639,4 +684,10 @@ func (h *FileServiceImpl) copyFileContent(src string, dest string) error {
 		return err
 	}
 	return os.Chmod(dest, srcInfo.Mode())
+}
+
+// ClearFileCache 清除文件相关的缓存
+func (s *FileServiceImpl) ClearFileCache(path string) error {
+	s.clearFileRelatedCache(path)
+	return nil
 }

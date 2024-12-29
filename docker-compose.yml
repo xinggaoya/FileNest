@@ -13,3 +13,4 @@ services:
       - /www/FileNest:/app/upload
     environment:
       - GIN_MODE=release
+    network_mode: bridge

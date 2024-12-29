@@ -107,19 +107,10 @@
   </div>
 
   <!-- 预览弹窗 -->
-  <n-modal 
-    v-model:show="showPreview" 
-    preset="card" 
-    style="max-width: 90vw; max-height: 90vh"
-    :title="file.fileName"
-  >
+  <n-modal v-model:show="showPreview" preset="card" style="max-width: 90vw; max-height: 90vh" :title="file.fileName">
     <div class="preview-content">
-      <img 
-        v-if="isImage" 
-        :src="previewUrl" 
-        :alt="file.fileName"
-        style="max-width: 100%; max-height: 80vh; object-fit: contain;"
-      />
+      <img v-if="isImage" :src="previewUrl" :alt="file.fileName"
+        style="max-width: 100%; max-height: 80vh; object-fit: contain;" />
       <pre v-else-if="isText" v-text="previewContent" />
       <div v-else class="preview-unsupported">
         暂不支持预览该类型文件
@@ -317,7 +308,7 @@ const handleClick = () => {
 // 处理预览
 const handlePreview = async () => {
   if (!canPreview.value) return
-  
+
   if (isText.value) {
     try {
       const response = await fetch(previewUrl.value)
@@ -327,7 +318,7 @@ const handlePreview = async () => {
       return
     }
   }
-  
+
   showPreview.value = true
 }
 
@@ -418,8 +409,7 @@ const confirmRename = async () => {
 // 确认复制
 const confirmCopy = async () => {
   if (!targetPath.value) {
-    message.error('请输入目标路径')
-    return
+    targetPath.value = '/'
   }
   try {
     await fileStore.copyFile(props.file.filePath, targetPath.value)
@@ -432,8 +422,7 @@ const confirmCopy = async () => {
 // 确认移动
 const confirmMove = async () => {
   if (!targetPath.value) {
-    message.error('请输入目标路径')
-    return
+    targetPath.value = '/'
   }
   try {
     await fileStore.moveFile(props.file.filePath, targetPath.value)
@@ -591,7 +580,8 @@ const confirmMove = async () => {
   min-width: 200px;
 }
 
-.file-size, .file-date {
+.file-size,
+.file-date {
   flex: 1;
   font-size: 13px;
   color: var(--n-text-color-3);
@@ -611,9 +601,11 @@ const confirmMove = async () => {
   0% {
     transform: scale(0.3);
   }
+
   50% {
     transform: scale(1.1);
   }
+
   100% {
     transform: scale(1);
   }
@@ -731,4 +723,4 @@ const confirmMove = async () => {
   color: var(--n-text-color);
   font-weight: 500;
 }
-</style> 
+</style>
