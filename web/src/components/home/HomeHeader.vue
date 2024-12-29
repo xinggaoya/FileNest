@@ -574,82 +574,127 @@ const handleBreadcrumbClick = async (index: number) => {
 <style scoped>
 .header-wrapper {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  gap: 20px;
-  width: 100%;
-  background-color: var(--n-card-color);
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--n-card-color);
   border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   margin-bottom: 16px;
+  gap: 24px;
+  flex-wrap: wrap;
 }
 
 .left-section {
-  flex: 0 0 auto;
+  flex: 1;
   min-width: 200px;
-  max-width: 30%;
 }
 
 .nav-path {
-  width: 100%;
-  overflow: hidden;
+  :deep(.n-breadcrumb) {
+    font-size: 15px;
+    
+    .n-breadcrumb-item {
+      cursor: pointer;
+      transition: color 0.2s ease;
+      
+      &:hover {
+        color: var(--n-primary-color);
+      }
+      
+      .n-icon {
+        margin-right: 4px;
+      }
+    }
+  }
 }
 
 .right-section {
-  flex: 1;
-  min-width: 0;
+  flex: 2;
+  max-width: 800px;
 }
 
 .search-and-actions {
   display: flex;
-  align-items: center;
   gap: 16px;
-  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .search-box {
   flex: 1;
-  max-width: 400px;
-  min-width: 200px;
+  min-width: 260px;
+  
+  :deep(.n-input) {
+    .n-input__border,
+    .n-input__state-border {
+      box-shadow: none !important;
+    }
+    
+    &:hover .n-input__border {
+      border-color: var(--n-primary-color);
+    }
+  }
 }
 
 .action-buttons {
   display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 12px;
+  
+  .n-button {
+    padding: 0 16px;
+    height: 34px;
+    
+    .n-icon {
+      margin-right: 4px;
+    }
+    
+    &:hover {
+      transform: translateY(-1px);
+      transition: all 0.2s ease;
+    }
+  }
+}
+
+.upload-settings {
+  margin-bottom: 16px;
+}
+
+.upload-tabs {
+  margin-bottom: 24px;
 }
 
 .upload-dragger-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 24px;
-}
-
-.upload-tabs {
-  margin-bottom: 16px;
-}
-
-.upload-area {
-  margin-bottom: 16px;
-}
-
-.upload-hint {
-  margin-top: 8px;
-  text-align: center;
-  color: var(--n-text-color-3);
-  font-size: 12px;
-}
-
-.upload-hint p {
-  margin: 4px 0;
+  padding: 32px;
+  
+  .n-icon {
+    margin-bottom: 16px;
+    color: var(--n-primary-color);
+  }
+  
+  .n-text {
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  
+  .upload-hint {
+    text-align: center;
+    color: var(--n-text-color-3);
+    font-size: 14px;
+    
+    p {
+      margin: 4px 0;
+    }
+  }
 }
 
 .upload-list {
-  background-color: var(--n-card-color);
-  border-radius: 8px;
-  padding: 16px;
+  margin-top: 24px;
+  border-top: 1px solid var(--n-border-color);
+  padding-top: 16px;
 }
 
 .upload-list-header {
@@ -657,25 +702,32 @@ const handleBreadcrumbClick = async (index: number) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--n-border-color);
+  
+  span {
+    font-size: 15px;
+    font-weight: 500;
+  }
 }
 
 .upload-items {
-  max-height: 400px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .upload-item {
+  background: var(--n-card-color);
+  border-radius: 6px;
   padding: 12px;
-  border-radius: 8px;
-  background-color: var(--n-color);
-  margin-bottom: 8px;
   transition: all 0.3s ease;
-}
-
-.upload-item:last-child {
-  margin-bottom: 0;
+  
+  &.is-finished {
+    background: rgba(var(--n-success-color), 0.1);
+  }
+  
+  &.is-error {
+    background: rgba(var(--n-error-color), 0.1);
+  }
 }
 
 .upload-item-header {
@@ -683,19 +735,19 @@ const handleBreadcrumbClick = async (index: number) => {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-}
-
-.filename {
-  flex: 1;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.filesize {
-  font-size: 12px;
-  color: var(--n-text-color-3);
+  
+  .filename {
+    flex: 1;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .filesize {
+    color: var(--n-text-color-3);
+    font-size: 13px;
+  }
 }
 
 .upload-item-body {
@@ -705,16 +757,8 @@ const handleBreadcrumbClick = async (index: number) => {
 .progress-info {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.status {
-  color: var(--n-text-color-3);
-}
-
-.progress-text {
+  font-size: 13px;
   color: var(--n-text-color-2);
 }
 
@@ -722,55 +766,42 @@ const handleBreadcrumbClick = async (index: number) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  
+  .error-message {
+    color: var(--n-error-color);
+    font-size: 13px;
+  }
+  
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
 }
 
-.error-message {
-  color: var(--n-error-color);
-  font-size: 12px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.is-finished {
-  background-color: rgba(var(--n-success-color-rgb), 0.1);
-}
-
-.is-error {
-  background-color: rgba(var(--n-error-color-rgb), 0.1);
-}
-
-/* 在小屏幕下调整按钮样式 */
-@media screen and (max-width: 768px) {
+@media (max-width: 768px) {
   .header-wrapper {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    padding: 12px 16px;
+    gap: 16px;
   }
-
+  
+  .right-section {
+    flex: 1;
+    max-width: none;
+  }
+  
   .search-and-actions {
-    flex-direction: column;
     gap: 12px;
   }
-
+  
   .search-box {
-    width: 100%;
-    max-width: 100%;
+    min-width: 200px;
   }
-
+  
   .action-buttons {
-    width: 100%;
-    justify-content: flex-end;
+    .n-button {
+      padding: 0 12px;
+    }
   }
-}
-
-.upload-settings {
-  margin-bottom: 16px;
-  padding: 8px 16px;
-  background-color: var(--n-card-color);
-  border-radius: 8px;
 }
 </style>
 
