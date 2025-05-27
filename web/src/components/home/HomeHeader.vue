@@ -35,9 +35,7 @@
                 <n-icon><search-outlined /></n-icon>
               </template>
             </n-input>
-            <n-button type="primary" ghost @click="handleSearch">
-              搜索
-            </n-button>
+            <n-button type="primary" ghost @click="handleSearch"> 搜索 </n-button>
           </n-input-group>
         </div>
 
@@ -69,18 +67,11 @@
   </div>
 
   <!-- 上传抽屉 -->
-  <n-drawer
-    v-model:show="showUploadDrawer"
-    :width="500"
-    placement="right"
-    title="上传文件"
-  >
+  <n-drawer v-model:show="showUploadDrawer" :width="500" placement="right" title="上传文件">
     <n-drawer-content>
       <!-- 上传设置 -->
       <div class="upload-settings">
-        <n-checkbox v-model:checked="uploadSettings.override">
-          覆盖已存在的文件
-        </n-checkbox>
+        <n-checkbox v-model:checked="uploadSettings.override"> 覆盖已存在的文件 </n-checkbox>
       </div>
 
       <n-tabs type="segment" class="upload-tabs">
@@ -141,16 +132,14 @@
       <div class="upload-list" v-if="Object.keys(uploadStatus).length > 0">
         <div class="upload-list-header">
           <span>文件上传列表</span>
-          <n-button text type="primary" @click="clearFinishedUploads">
-            清除已完成
-          </n-button>
+          <n-button text type="primary" @click="clearFinishedUploads"> 清除已完成 </n-button>
         </div>
         <div class="upload-items">
-          <div 
-            class="upload-item" 
-            v-for="(status, key) in uploadStatus" 
+          <div
+            class="upload-item"
+            v-for="(status, key) in uploadStatus"
             :key="key"
-            :class="{ 
+            :class="{
               'is-finished': status.status === 'finished',
               'is-error': status.status === 'error'
             }"
@@ -162,16 +151,18 @@
               <span class="filename" :title="key">{{ key }}</span>
               <span class="filesize">{{ formatFileSize(status.size || 0) }}</span>
             </div>
-            
+
             <div class="upload-item-body">
               <div class="progress-info">
                 <span class="status">
-                  {{ 
-                    status.status === 'uploading' ? 
-                      `上传中 - ${formatFileSize(status.speed || 0)}/s` :
-                    status.status === 'finished' ? '上传完成' :
-                    status.status === 'waiting' ? '等待上传' :
-                    '上传失败'
+                  {{
+                    status.status === 'uploading'
+                      ? `上传中 - ${formatFileSize(status.speed || 0)}/s`
+                      : status.status === 'finished'
+                        ? '上传完成'
+                        : status.status === 'waiting'
+                          ? '等待上传'
+                          : '上传失败'
                   }}
                 </span>
                 <span class="progress-text">{{ status.progress }}%</span>
@@ -179,8 +170,13 @@
               <n-progress
                 type="line"
                 :percentage="status.progress"
-                :status="status.status === 'error' ? 'error' :
-                        status.status === 'finished' ? 'success' : 'info'"
+                :status="
+                  status.status === 'error'
+                    ? 'error'
+                    : status.status === 'finished'
+                      ? 'success'
+                      : 'info'
+                "
                 :show-indicator="false"
                 :height="2"
               />
@@ -189,21 +185,15 @@
             <div class="upload-item-footer">
               <div class="error-message" v-if="status.message">{{ status.message }}</div>
               <div class="actions">
-                <n-button 
-                  v-if="status.status === 'error'" 
-                  text 
+                <n-button
+                  v-if="status.status === 'error'"
+                  text
                   type="primary"
                   @click="retryUpload(key)"
                 >
                   重试
                 </n-button>
-                <n-button 
-                  text 
-                  type="error"
-                  @click="removeUpload(key)"
-                >
-                  移除
-                </n-button>
+                <n-button text type="error" @click="removeUpload(key)"> 移除 </n-button>
               </div>
             </div>
           </div>
@@ -284,7 +274,7 @@ const uploadSettings = reactive({
 const handleBeforeUpload = async (data: { file: UploadFileInfo }) => {
   const file = data.file.file as File
   const fileName = file.name
-  
+
   // 检查文件是否已存在
   if (uploadStatus[fileName]) {
     message.warning(`文件 ${fileName} 已在上传列表中`)
@@ -297,7 +287,7 @@ const handleBeforeUpload = async (data: { file: UploadFileInfo }) => {
     const folders = relativePath.split('/').slice(0, -1)
     if (folders.length > 0) {
       try {
-        let currentPath = fileStore.currentPathString || ''
+        let currentPath = fileStore.currentPath || ''
         for (const folder of folders) {
           if (!folder) continue
           currentPath = currentPath ? `${currentPath}/${folder}` : folder
@@ -326,10 +316,10 @@ const handleBeforeUpload = async (data: { file: UploadFileInfo }) => {
     file: file
   }
   uploadQueue.value.push(fileName)
-  
+
   // 尝试开始上传
   processUploadQueue()
-  
+
   // 返回 false 阻止默认上传行为
   return false
 }
@@ -339,7 +329,7 @@ const processUploadQueue = async () => {
   while (uploadQueue.value.length > 0 && activeUploads < maxConcurrentUploads) {
     const fileName = uploadQueue.value[0]
     const status = uploadStatus[fileName]
-    
+
     if (status && status.status === 'waiting' && status.file) {
       activeUploads++
       uploadQueue.value.shift()
@@ -351,7 +341,12 @@ const processUploadQueue = async () => {
 }
 
 // 处理文件上传
-const handleUpload = async ({ file, onFinish, onError, onProgress }: UploadCustomRequestOptions) => {
+const handleUpload = async ({
+  file,
+  onFinish,
+  onError,
+  onProgress
+}: UploadCustomRequestOptions) => {
   if (!file) return
   await handleBeforeUpload({ file })
 }
@@ -364,7 +359,7 @@ const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
   const fileName = file.name
   const relativePath = (file as any).webkitRelativePath || ''
   const folderPath = relativePath.split('/')
-  
+
   // 检查文件是否已存在
   if (uploadStatus[fileName]) {
     message.warning(`文件 ${fileName} 已在上传列表中`)
@@ -375,14 +370,14 @@ const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
   if (folderPath.length > 1) {
     try {
       // 构建完整的文件夹路径
-      let currentPath = fileStore.currentPathString || ''
+      let currentPath = fileStore.currentPath || ''
       const folders = folderPath.slice(0, -1) // 去掉文件名，只保留文件夹路径
-      
+
       // 逐级创建文件夹
       for (let i = 0; i < folders.length; i++) {
         const folder = folders[i]
         if (!folder) continue
-        
+
         // 计算当前层级的完整路径
         if (currentPath) {
           currentPath = `${currentPath}/${folder}`
@@ -416,7 +411,7 @@ const handleFolderUpload = async (options: UploadCustomRequestOptions) => {
     startTime: Date.now()
   }
   uploadQueue.value.push(fileName)
-  
+
   // 开始上传
   processUploadQueue()
 
@@ -441,8 +436,8 @@ const doUploadFile = async (fileName: string, file: File) => {
   try {
     // 获取文件的相对路径
     const relativePath = (file as any).webkitRelativePath || ''
-    let path = fileStore.currentPathString || ''
-    
+    let path = fileStore.currentPath || ''
+
     // 如果是文件夹上传（有相对路径），则构建完整路径
     if (relativePath) {
       const folderPath = relativePath.split('/').slice(0, -1).join('/')
@@ -572,7 +567,9 @@ const handleBreadcrumbClick = async (index: number) => {
   try {
     loadingIndex.value = index
     // 根据点击的索引构建路径
-    const targetPath = fileStore.currentPath.slice(0, index + 1).join('/')
+    // currentPath为字符串，需split再slice再join
+    const pathArr = fileStore.currentPath.split('/').filter(Boolean)
+    const targetPath = pathArr.slice(0, index + 1).join('/')
     await fileStore.enterDirectory('/' + targetPath)
   } finally {
     loadingIndex.value = -1
@@ -604,15 +601,15 @@ defineEmits(['showConfig'])
 .nav-path {
   :deep(.n-breadcrumb) {
     font-size: 15px;
-    
+
     .n-breadcrumb-item {
       cursor: pointer;
       transition: color 0.2s ease;
-      
+
       &:hover {
         color: var(--n-primary-color);
       }
-      
+
       .n-icon {
         margin-right: 4px;
       }
@@ -635,13 +632,13 @@ defineEmits(['showConfig'])
 .search-box {
   flex: 1;
   min-width: 260px;
-  
+
   :deep(.n-input) {
     .n-input__border,
     .n-input__state-border {
       box-shadow: none !important;
     }
-    
+
     &:hover .n-input__border {
       border-color: var(--n-primary-color);
     }
@@ -651,15 +648,15 @@ defineEmits(['showConfig'])
 .action-buttons {
   display: flex;
   gap: 12px;
-  
+
   .n-button {
     padding: 0 16px;
     height: 34px;
-    
+
     .n-icon {
       margin-right: 4px;
     }
-    
+
     &:hover {
       transform: translateY(-1px);
       transition: all 0.2s ease;
@@ -680,22 +677,22 @@ defineEmits(['showConfig'])
   flex-direction: column;
   align-items: center;
   padding: 32px;
-  
+
   .n-icon {
     margin-bottom: 16px;
     color: var(--n-primary-color);
   }
-  
+
   .n-text {
     font-size: 16px;
     margin-bottom: 8px;
   }
-  
+
   .upload-hint {
     text-align: center;
     color: var(--n-text-color-3);
     font-size: 14px;
-    
+
     p {
       margin: 4px 0;
     }
@@ -713,7 +710,7 @@ defineEmits(['showConfig'])
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-  
+
   span {
     font-size: 15px;
     font-weight: 500;
@@ -731,11 +728,11 @@ defineEmits(['showConfig'])
   border-radius: 6px;
   padding: 12px;
   transition: all 0.3s ease;
-  
+
   &.is-finished {
     background: rgba(var(--n-success-color), 0.1);
   }
-  
+
   &.is-error {
     background: rgba(var(--n-error-color), 0.1);
   }
@@ -746,7 +743,7 @@ defineEmits(['showConfig'])
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  
+
   .filename {
     flex: 1;
     font-weight: 500;
@@ -754,7 +751,7 @@ defineEmits(['showConfig'])
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  
+
   .filesize {
     color: var(--n-text-color-3);
     font-size: 13px;
@@ -777,12 +774,12 @@ defineEmits(['showConfig'])
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
+
   .error-message {
     color: var(--n-error-color);
     font-size: 13px;
   }
-  
+
   .actions {
     display: flex;
     gap: 8px;
@@ -794,20 +791,20 @@ defineEmits(['showConfig'])
     padding: 12px 16px;
     gap: 16px;
   }
-  
+
   .right-section {
     flex: 1;
     max-width: none;
   }
-  
+
   .search-and-actions {
     gap: 12px;
   }
-  
+
   .search-box {
     min-width: 200px;
   }
-  
+
   .action-buttons {
     .n-button {
       padding: 0 12px;

@@ -68,6 +68,7 @@ export interface UploadConfig {
   filePath: string
   fileSize: number
   override: boolean
+  relativePath?: string // 文件相对路径，用于文件夹上传
   chunks?: {
     chunkIndex: number
     totalChunks: number
@@ -84,6 +85,7 @@ export interface UploadProgress {
   percentage: number
   status: 'pending' | 'uploading' | 'success' | 'error'
   error?: string
+  relativePath?: string // 文件相对路径，用于文件夹上传
 }
 
 /**

@@ -105,8 +105,9 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 	}
 
 	path := ctx.PostForm("path")
+	relativePath := ctx.PostForm("relativePath") // 获取相对路径
 	override := ctx.PostForm("override") == "true"
-	glog.Infof("收到文件上传请求，文件名: %s, 路径: %s, 是否覆盖: %v", fileName, path, override)
+	glog.Infof("收到文件上传请求，文件名: %s, 路径: %s, 相对路径: %s, 是否覆盖: %v", fileName, path, relativePath, override)
 
 	// 规范化路径
 	path = filepath.Clean(path)
@@ -114,8 +115,18 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 		path = ""
 	}
 
+	// 如果有相对路径，则构建完整的目标路径
+	targetPath := path
+	if relativePath != "" {
+		// 移除文件名，只保留目录部分
+		dirPath := filepath.Dir(relativePath)
+		if dirPath != "." {
+			targetPath = filepath.Join(path, dirPath)
+		}
+	}
+
 	// 确保目标目录存在
-	uploadPath := filepath.Join(consts.UploadDir, path)
+	uploadPath := filepath.Join(consts.UploadDir, targetPath)
 	if err := os.MkdirAll(uploadPath, os.ModePerm); err != nil {
 		glog.Errorf("创建目标目录失败: %s, 路径: %s", err, uploadPath)
 		response.Error(ctx, "创建目标目录失败")
@@ -130,7 +141,7 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 	}
 
 	// 检查文件上传前置条件
-	if err := h.fileService.UploadFile(path, fileName, 1, override); err != nil {
+	if err := h.fileService.UploadFile(targetPath, fileName, 1, override); err != nil {
 		glog.Errorf("文件上传前置检查失败: %s", err)
 		response.Error(ctx, err.Error())
 		return
@@ -149,9 +160,12 @@ func (h *FileController) UploadFile(ctx *gin.Context) {
 		glog.Warnf("设置文件权限失败: %s, 路径: %s", err, filePath)
 	}
 
+	// 清除相关缓存
+	h.fileService.ClearFileCache(targetPath)
+
 	glog.Infof("文件上传成功: %s", filePath)
 	response.Success(ctx, map[string]string{
-		"path": filepath.Join(path, fileName),
+		"path": filepath.Join(targetPath, fileName),
 	})
 }
 
@@ -170,6 +184,7 @@ func (h *FileController) UploadChunk(ctx *gin.Context) {
 	}
 
 	path := ctx.PostForm("path")
+	relativePath := ctx.PostForm("relativePath") // 获取相对路径
 	override := ctx.PostForm("override") == "true"
 	chunkIndex := ctx.PostForm("chunkIndex")
 	totalChunks := ctx.PostForm("totalChunks")
@@ -189,8 +204,8 @@ func (h *FileController) UploadChunk(ctx *gin.Context) {
 		return
 	}
 
-	glog.Infof("收到文件分块上传请求，文件名: %s, 路径: %s, 是否覆盖: %v, 分块索引: %d, 总分块数: %d",
-		fileName, path, override, chunkIndexInt, totalChunksInt)
+	glog.Infof("收到文件分块上传请求，文件名: %s, 路径: %s, 相对路径: %s, 是否覆盖: %v, 分块索引: %d, 总分块数: %d",
+		fileName, path, relativePath, override, chunkIndexInt, totalChunksInt)
 
 	// 规范化路径
 	path = filepath.Clean(path)
@@ -198,8 +213,18 @@ func (h *FileController) UploadChunk(ctx *gin.Context) {
 		path = ""
 	}
 
+	// 如果有相对路径，则构建完整的目标路径
+	targetPath := path
+	if relativePath != "" {
+		// 移除文件名，只保留目录部分
+		dirPath := filepath.Dir(relativePath)
+		if dirPath != "." {
+			targetPath = filepath.Join(path, dirPath)
+		}
+	}
+
 	// 确保临时目录存在
-	tempDir := filepath.Join(consts.TempDir, path, fileName)
+	tempDir := filepath.Join(consts.TempDir, targetPath, fileName)
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
 		glog.Errorf("创建临时目录失败: %s, 路径: %s", err, tempDir)
 		response.Error(ctx, "创建临时目录失败")
@@ -216,17 +241,18 @@ func (h *FileController) UploadChunk(ctx *gin.Context) {
 
 	response.Success(ctx, map[string]interface{}{
 		"chunkIndex": chunkIndexInt,
-		"path":       filepath.Join(path, fileName),
+		"path":       filepath.Join(targetPath, fileName),
 	})
 }
 
 // MergeChunks 合并文件分块
 func (h *FileController) MergeChunks(ctx *gin.Context) {
 	var req struct {
-		FileName    string `json:"fileName"`
-		Path        string `json:"path"`
-		TotalChunks int    `json:"totalChunks"`
-		Override    bool   `json:"override"`
+		FileName     string `json:"fileName"`
+		Path         string `json:"path"`
+		RelativePath string `json:"relativePath"` // 添加相对路径
+		TotalChunks  int    `json:"totalChunks"`
+		Override     bool   `json:"override"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -235,8 +261,8 @@ func (h *FileController) MergeChunks(ctx *gin.Context) {
 		return
 	}
 
-	glog.Infof("收到合并文件请求，文件名: %s, 路径: %s, 总分块数: %d, 是否覆盖: %v",
-		req.FileName, req.Path, req.TotalChunks, req.Override)
+	glog.Infof("收到合并文件请求，文件名: %s, 路径: %s, 相对路径: %s, 总分块数: %d, 是否覆盖: %v",
+		req.FileName, req.Path, req.RelativePath, req.TotalChunks, req.Override)
 
 	// 规范化路径
 	req.Path = filepath.Clean(req.Path)
@@ -244,15 +270,25 @@ func (h *FileController) MergeChunks(ctx *gin.Context) {
 		req.Path = ""
 	}
 
+	// 如果有相对路径，则构建完整的目标路径
+	targetPath := req.Path
+	if req.RelativePath != "" {
+		// 移除文件名，只保留目录部分
+		dirPath := filepath.Dir(req.RelativePath)
+		if dirPath != "." {
+			targetPath = filepath.Join(req.Path, dirPath)
+		}
+	}
+
 	// 检查文件上传前置条件
-	if err := h.fileService.UploadFile(req.Path, req.FileName, req.TotalChunks, req.Override); err != nil {
+	if err := h.fileService.UploadFile(targetPath, req.FileName, req.TotalChunks, req.Override); err != nil {
 		glog.Errorf("文件上传前置检查失败: %s", err)
 		response.Error(ctx, err.Error())
 		return
 	}
 
 	// 确保目标目录存在
-	uploadPath := filepath.Join(consts.UploadDir, req.Path)
+	uploadPath := filepath.Join(consts.UploadDir, targetPath)
 	if err := os.MkdirAll(uploadPath, os.ModePerm); err != nil {
 		glog.Errorf("创建目标目录失败: %s, 路径: %s", err, uploadPath)
 		response.Error(ctx, "创建目标目录失败")
@@ -267,7 +303,7 @@ func (h *FileController) MergeChunks(ctx *gin.Context) {
 	}
 
 	// 合并文件
-	tempDir := filepath.Join(consts.TempDir, req.Path, req.FileName)
+	tempDir := filepath.Join(consts.TempDir, targetPath, req.FileName)
 	targetFile := filepath.Join(uploadPath, req.FileName)
 
 	// 创建目标文件
@@ -321,7 +357,7 @@ func (h *FileController) MergeChunks(ctx *gin.Context) {
 
 	glog.Infof("文件合并成功: %s", targetFile)
 	response.Success(ctx, map[string]string{
-		"path": filepath.Join(req.Path, req.FileName),
+		"path": filepath.Join(targetPath, req.FileName),
 	})
 }
 

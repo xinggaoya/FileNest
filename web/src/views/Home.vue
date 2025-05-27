@@ -151,7 +151,7 @@
             <n-data-table
               :columns="tableColumns"
               :data="fileStore.displayFiles"
-              :row-key="(row) => row.filePath"
+              :row-key="(row: FileInfo) => row.filePath"
               :checked-row-keys="Array.from(fileStore.selectedFiles)"
               @update:checked-row-keys="handleTableSelection"
               :row-props="tableRowProps"
@@ -281,6 +281,7 @@ import { useMessageHandler } from '@/composables/useMessageHandler'
 import FileUpload from '@/components/FileUpload.vue'
 import type { FileInfo } from '@/types/file'
 import type { DataTableColumns } from 'naive-ui'
+import type { RowData } from 'naive-ui/es/data-table/src/interface'
 import {
   FolderOutlined,
   FileOutlined,
@@ -352,7 +353,7 @@ const tableColumns: DataTableColumns<FileInfo> = [
     title: '名称',
     key: 'fileName',
     width: 300,
-    render(row) {
+    render(row: FileInfo) {
       return h(
         'div',
         {
@@ -393,7 +394,7 @@ const tableColumns: DataTableColumns<FileInfo> = [
     key: 'fileSize',
     width: 120,
     align: 'right',
-    render(row) {
+    render(row: FileInfo) {
       return row.isDir ? '-' : formatFileSize(row.fileSize)
     }
   },
@@ -401,7 +402,7 @@ const tableColumns: DataTableColumns<FileInfo> = [
     title: '类型',
     key: 'fileType',
     width: 100,
-    render(row) {
+    render(row: FileInfo) {
       if (row.isDir) return '文件夹'
       const ext = row.fileType.toLowerCase()
       if (isImage(row.fileName)) return '图片'
@@ -413,7 +414,7 @@ const tableColumns: DataTableColumns<FileInfo> = [
     title: '修改时间',
     key: 'modTime',
     width: 180,
-    render(row) {
+    render(row: FileInfo) {
       return formatTime(row.modTime)
     }
   }
@@ -574,9 +575,9 @@ const handleCreateFolder = async () => {
   if (!newFolderName.value.trim()) return
 
   const result = await fileStore.createNewFolder(newFolderName.value.trim())
-  handleResult(result)
+  if (result) handleResult(result)
 
-  if (result.success) {
+  if (result && result.success) {
     showCreateFolderModal.value = false
     newFolderName.value = ''
   }
@@ -587,9 +588,9 @@ const handleRename = async () => {
   if (!renameFile.value || !newFileName.value.trim()) return
 
   const result = await fileStore.renameItem(renameFile.value.filePath, newFileName.value.trim())
-  handleResult(result)
+  if (result) handleResult(result)
 
-  if (result.success) {
+  if (result && result.success) {
     showRenameModal.value = false
     newFileName.value = ''
     renameFile.value = null
@@ -612,7 +613,7 @@ const handleContextMenuSelect = async (key: string) => {
   switch (key) {
     case 'delete': {
       const deleteResult = await fileStore.deleteFiles([contextMenuFile.value.filePath])
-      handleResult(deleteResult)
+      if (deleteResult) handleResult(deleteResult)
       break
     }
     case 'rename': {
@@ -644,7 +645,7 @@ const handleContextMenuSelect = async (key: string) => {
 // 处理粘贴
 const handlePaste = async () => {
   const result = await fileStore.pasteFiles()
-  handleResult(result)
+  if (result) handleResult(result)
 }
 
 // 格式化文件大小

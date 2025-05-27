@@ -23,10 +23,28 @@
         ref="fileInputRef"
         type="file"
         multiple
+        webkitdirectory
         style="display: none"
         @change="handleFileSelect"
       />
     </div>
+
+    <!-- 上传选择按钮 -->
+    <div class="upload-controls">
+      <n-space>
+        <n-button @click="triggerFileOnly">选择文件</n-button>
+        <n-button @click="triggerFileInput">选择文件夹</n-button>
+      </n-space>
+    </div>
+
+    <!-- 文件选择输入框（无文件夹支持） -->
+    <input
+      ref="fileOnlyInputRef"
+      type="file"
+      multiple
+      style="display: none"
+      @change="handleFileSelect"
+    />
 
     <!-- 当前路径显示 -->
     <div class="current-path">
@@ -100,6 +118,7 @@ const { handleResult, message } = useMessageHandler()
 const fileStore = useFileStore()
 
 const fileInputRef = ref<HTMLInputElement>()
+const fileOnlyInputRef = ref<HTMLInputElement>()
 const isDragOver = ref(false)
 const uploadQueue = ref<Record<string, UploadProgress>>({})
 
@@ -112,6 +131,11 @@ const currentPath = computed(() => fileStore.currentPath)
 // 触发文件选择
 const triggerFileInput = () => {
   fileInputRef.value?.click()
+}
+
+// 触发仅文件选择
+const triggerFileOnly = () => {
+  fileOnlyInputRef.value?.click()
 }
 
 // 处理文件选择
@@ -142,7 +166,14 @@ const handleDrop = (event: DragEvent) => {
 
 // 处理文件列表
 const handleFiles = (files: File[]) => {
-  files.forEach((file) => {
+  // 对文件进行排序，确保文件夹在上传前创建
+  const sortedFiles = files.sort((a, b) => {
+    const pathA = (a as any).webkitRelativePath || ''
+    const pathB = (b as any).webkitRelativePath || ''
+    return pathA.localeCompare(pathB)
+  })
+
+  sortedFiles.forEach((file) => {
     uploadFileToServer(file)
   })
 }
@@ -150,6 +181,7 @@ const handleFiles = (files: File[]) => {
 // 上传文件到服务器
 const uploadFileToServer = async (file: File) => {
   const uploadId = `${file.name}-${Date.now()}`
+  const relativePath = (file as any).webkitRelativePath || ''
 
   // 添加到上传队列
   const uploadProgress: UploadProgress = {
@@ -157,7 +189,8 @@ const uploadFileToServer = async (file: File) => {
     loaded: 0,
     total: file.size,
     percentage: 0,
-    status: 'pending'
+    status: 'pending',
+    relativePath: relativePath
   }
   uploadQueue.value[uploadId] = uploadProgress
 
@@ -171,7 +204,8 @@ const uploadFileToServer = async (file: File) => {
       fileName: file.name,
       filePath: currentPath.value,
       fileSize: file.size,
-      override: uploadConfig.override
+      override: uploadConfig.override,
+      relativePath: relativePath
     }
 
     // 开始上传
@@ -293,7 +327,7 @@ const formatFileSize = (size: number): string => {
   cursor: pointer;
   transition: all 0.3s ease;
   background-color: #fafafa;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .upload-area:hover,
@@ -421,6 +455,12 @@ const formatFileSize = (size: number): string => {
   gap: 8px;
   min-width: 100px;
   justify-content: flex-end;
+}
+
+.upload-controls {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
 }
 
 @media (max-width: 768px) {

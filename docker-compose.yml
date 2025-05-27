@@ -10,7 +10,7 @@ services:
     ports:
       - "9040:9040"
     volumes:
-      - /www/FileNest:/app/upload
+      - /www/FileNest/upload:/app/upload
     environment:
       - GIN_MODE=release
     network_mode: bridge

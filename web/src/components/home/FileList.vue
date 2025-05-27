@@ -3,19 +3,13 @@
     <!-- 视图切换按钮 -->
     <div class="view-toggle">
       <n-button-group>
-        <n-button
-          :type="viewMode === 'list' ? 'primary' : 'default'"
-          @click="viewMode = 'list'"
-        >
+        <n-button :type="viewMode === 'list' ? 'primary' : 'default'" @click="viewMode = 'list'">
           <template #icon>
             <n-icon><unordered-list-outlined /></n-icon>
           </template>
           列表
         </n-button>
-        <n-button
-          :type="viewMode === 'grid' ? 'primary' : 'default'"
-          @click="viewMode = 'grid'"
-        >
+        <n-button :type="viewMode === 'grid' ? 'primary' : 'default'" @click="viewMode = 'grid'">
           <template #icon>
             <n-icon><appstore-outlined /></n-icon>
           </template>
@@ -64,30 +58,19 @@
 
               <!-- 操作按钮 -->
               <div class="file-actions">
-                <n-button
-                  v-if="file.isDir"
-                  size="small"
-                  @click.stop="handleEnterDirectory(file)"
-                >
+                <n-button v-if="file.isDir" size="small" @click.stop="handleEnterDirectory(file)">
                   <template #icon>
                     <n-icon><folder-open-outlined /></n-icon>
                   </template>
                   打开
                 </n-button>
-                <n-button
-                  v-else
-                  size="small"
-                  @click.stop="handleDownload(file)"
-                >
+                <n-button v-else size="small" @click.stop="handleDownload(file)">
                   <template #icon>
                     <n-icon><download-outlined /></n-icon>
                   </template>
                   下载
                 </n-button>
-                <n-button
-                  size="small"
-                  @click.stop="handleDelete(file)"
-                >
+                <n-button size="small" @click.stop="handleDelete(file)">
                   <template #icon>
                     <n-icon><delete-outlined /></n-icon>
                   </template>
@@ -137,7 +120,7 @@ const handleEnterDirectory = (file: any) => {
 }
 
 const handleDownload = (file: any) => {
-  fileStore.downloadFile(file.filePath)
+  fileStore.downloadFile(file.filePath, file.fileName)
 }
 
 const handleDelete = (file: any) => {
@@ -147,7 +130,7 @@ const handleDelete = (file: any) => {
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: () => {
-      fileStore.deleteFile(file.filePath)
+      fileStore.deleteFiles([file.filePath])
     }
   })
 }
@@ -300,4 +283,4 @@ defineProps<{
 .mode-transition-leave-to {
   opacity: 0;
 }
-</style> 
+</style>

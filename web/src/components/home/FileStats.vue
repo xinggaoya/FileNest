@@ -57,11 +57,7 @@ import { useFileStore } from '@/stores/file'
 import { getFileStats } from '@/api/file/file'
 import type { FileStats } from '@/types/file'
 import { createDiscreteApi } from 'naive-ui'
-import {
-  DocumentTextOutline,
-  FolderOutline,
-  ServerOutline
-} from '@vicons/ionicons5'
+import { DocumentTextOutline, FolderOutline, ServerOutline } from '@vicons/ionicons5'
 
 const { message } = createDiscreteApi(['message'])
 const fileStore = useFileStore()
@@ -81,7 +77,7 @@ const formattedTotalSize = computed(() => {
 // 获取统计数据
 const fetchStats = async () => {
   try {
-    const { data } = await getFileStats({ path: fileStore.currentPathString })
+    const { data } = await getFileStats({ path: fileStore.currentPath })
     if (data) {
       stats.value = data
     }
@@ -91,9 +87,12 @@ const fetchStats = async () => {
 }
 
 // 监听路径变化，重新获取统计数据
-watch(() => fileStore.currentPathString, () => {
-  fetchStats()
-})
+watch(
+  () => fileStore.currentPath,
+  () => {
+    fetchStats()
+  }
+)
 
 // 初始化时获取统计数据
 onMounted(() => {
@@ -173,4 +172,4 @@ onMounted(() => {
     font-size: 16px;
   }
 }
-</style> 
+</style>

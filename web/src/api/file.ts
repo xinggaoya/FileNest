@@ -101,6 +101,10 @@ export function uploadFile(
   formData.append('path', config.filePath)
   formData.append('override', String(config.override))
 
+  if (config.relativePath) {
+    formData.append('relativePath', config.relativePath)
+  }
+
   return request.post('/file/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
@@ -127,6 +131,10 @@ export function uploadChunk(
   formData.append('path', config.filePath)
   formData.append('override', String(config.override))
 
+  if (config.relativePath) {
+    formData.append('relativePath', config.relativePath)
+  }
+
   if (config.chunks) {
     formData.append('chunkIndex', String(config.chunks.chunkIndex))
     formData.append('totalChunks', String(config.chunks.totalChunks))
@@ -146,14 +154,22 @@ export function uploadChunk(
  * @param path 文件路径
  * @param totalChunks 总分块数
  * @param override 是否覆盖
+ * @param relativePath 相对路径
  * @returns 合并结果
  */
-export function mergeChunks(fileName: string, path: string, totalChunks: number, override = false) {
+export function mergeChunks(
+  fileName: string,
+  path: string,
+  totalChunks: number,
+  override = false,
+  relativePath?: string
+) {
   return request.post('/file/merge-chunks', {
     fileName,
     path,
     totalChunks,
-    override
+    override,
+    relativePath
   })
 }
 

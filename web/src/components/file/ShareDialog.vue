@@ -1,10 +1,16 @@
 <template>
   <n-modal v-model:show="visible" preset="card" title="创建分享" style="width: 500px">
-    <n-form ref="formRef" :model="formData" :rules="formRules" label-placement="left" label-width="100px">
+    <n-form
+      ref="formRef"
+      :model="formData"
+      :rules="formRules"
+      label-placement="left"
+      label-width="100px"
+    >
       <n-form-item label="文件路径" path="filePath">
         <n-input v-model:value="formData.filePath" readonly />
       </n-form-item>
-      
+
       <n-form-item label="分享密码" path="password">
         <n-input
           v-model:value="formData.password"
@@ -14,7 +20,7 @@
           clearable
         />
       </n-form-item>
-      
+
       <n-form-item label="有效期" path="expireHours">
         <n-select
           v-model:value="formData.expireHours"
@@ -23,7 +29,7 @@
           clearable
         />
       </n-form-item>
-      
+
       <n-form-item label="下载次数" path="maxDownload">
         <n-input-number
           v-model:value="formData.maxDownload"
@@ -33,7 +39,7 @@
           style="width: 100%"
         />
       </n-form-item>
-      
+
       <n-form-item label="分享描述" path="description">
         <n-input
           v-model:value="formData.description"
@@ -45,7 +51,7 @@
         />
       </n-form-item>
     </n-form>
-    
+
     <template #footer>
       <div class="dialog-footer">
         <n-button @click="handleCancel">取消</n-button>
@@ -53,7 +59,7 @@
       </div>
     </template>
   </n-modal>
-  
+
   <!-- 分享结果对话框 -->
   <n-modal v-model:show="resultVisible" preset="card" title="分享创建成功" style="width: 500px">
     <div class="share-result">
@@ -64,24 +70,24 @@
             <span class="value">{{ shareResult?.shareCode }}</span>
             <n-button text @click="copyShareCode">复制</n-button>
           </div>
-          
+
           <div class="info-item">
             <span class="label">分享链接：</span>
             <span class="value break-all">{{ shareUrl }}</span>
             <n-button text @click="copyShareUrl">复制</n-button>
           </div>
-          
+
           <div v-if="shareResult?.password" class="info-item">
             <span class="label">提取密码：</span>
             <span class="value">{{ shareResult.password }}</span>
             <n-button text @click="copyPassword">复制</n-button>
           </div>
-          
+
           <div v-if="shareResult?.expireTime" class="info-item">
             <span class="label">过期时间：</span>
             <span class="value">{{ formatTime(shareResult.expireTime) }}</span>
           </div>
-          
+
           <div v-if="shareResult?.maxDownload" class="info-item">
             <span class="label">下载限制：</span>
             <span class="value">{{ shareResult.maxDownload }}次</span>
@@ -89,7 +95,7 @@
         </div>
       </n-alert>
     </div>
-    
+
     <template #footer>
       <div class="dialog-footer">
         <n-button @click="handleClose">关闭</n-button>
@@ -100,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   NModal,
   NForm,
@@ -126,7 +132,7 @@ const props = defineProps<Props>()
 // Emits
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  'success': [share: ShareItem]
+  success: [share: ShareItem]
 }>()
 
 // 状态
@@ -152,9 +158,7 @@ const formData = ref<CreateShareRequest>({
 
 // 表单规则
 const formRules = {
-  filePath: [
-    { required: true, message: '文件路径不能为空', trigger: 'blur' }
-  ]
+  filePath: [{ required: true, message: '文件路径不能为空', trigger: 'blur' }]
 }
 
 // 过期时间选项
@@ -186,14 +190,14 @@ const handleCreate = async () => {
   try {
     await formRef.value?.validate()
     creating.value = true
-    
+
     const { data } = await createShare(formData.value)
     shareResult.value = data
-    
+
     emit('success', data)
     visible.value = false
     resultVisible.value = true
-    
+
     message.success('分享创建成功')
   } catch (error: any) {
     if (error.message) {
@@ -255,23 +259,23 @@ const copyPassword = async () => {
 // 复制所有分享信息
 const copyAllInfo = async () => {
   if (!shareResult.value) return
-  
+
   let info = `文件分享\n`
   info += `文件名：${shareResult.value.fileName}\n`
   info += `分享链接：${shareUrl.value}\n`
-  
+
   if (shareResult.value.password) {
     info += `提取密码：${shareResult.value.password}\n`
   }
-  
+
   if (shareResult.value.expireTime) {
     info += `过期时间：${formatTime(shareResult.value.expireTime)}\n`
   }
-  
+
   if (shareResult.value.description) {
     info += `描述：${shareResult.value.description}\n`
   }
-  
+
   await navigator.clipboard.writeText(info)
   message.success('分享信息已复制')
 }
@@ -281,16 +285,17 @@ const formatTime = (time: string): string => {
   return new Date(time).toLocaleString('zh-CN')
 }
 
-// 监听props变化
-watch(() => props.filePath, () => {
-  if (props.filePath) {
+// 监听文件路径变化
+watch(
+  () => props.filePath,
+  () => {
     initForm()
   }
-}, { immediate: true })
+)
 
 // 监听visible变化
-watch(visible, (newVal) => {
-  if (newVal && props.filePath) {
+watch(visible, (newVal: boolean) => {
+  if (newVal) {
     initForm()
   }
 })
@@ -333,4 +338,4 @@ watch(visible, (newVal) => {
 .break-all {
   word-break: break-all;
 }
-</style> 
+</style>
