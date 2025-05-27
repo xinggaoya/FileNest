@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"FileNest/common/database"
 	"FileNest/common/glog"
 	"FileNest/internal/cache"
 	"FileNest/router"
@@ -24,6 +25,12 @@ func Run() {
 	// 初始化日志
 	glog.Install()
 
+	// 初始化数据库
+	if err := database.InitDB(); err != nil {
+		glog.Errorf("初始化数据库失败: %s", err)
+		os.Exit(1)
+	}
+
 	// 初始化 Redis
 	if err := cache.InitRedis(); err != nil {
 		glog.Errorf("初始化 Redis 失败: %s", err)
@@ -32,6 +39,9 @@ func Run() {
 
 	// 程序退出时清理资源
 	defer func() {
+		if err := database.Close(); err != nil {
+			glog.Errorf("关闭数据库连接失败: %s", err)
+		}
 		if err := cache.Close(); err != nil {
 			glog.Errorf("关闭 Redis 连接失败: %s", err)
 		}
@@ -43,6 +53,9 @@ func Run() {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigChan
 		glog.Infof("收到系统信号: %v, 开始清理资源...", sig)
+		if err := database.Close(); err != nil {
+			glog.Errorf("关闭数据库连接失败: %s", err)
+		}
 		if err := cache.Close(); err != nil {
 			glog.Errorf("关闭 Redis 连接失败: %s", err)
 		}

@@ -24,6 +24,7 @@ func Install(app *gin.Engine) {
 	index := app.Group("/")
 
 	fileController := controller.NewFileController(service.NewFileService())
+	shareController := controller.NewShareController(service.NewShareService())
 
 	api := index.Group("/api")
 
@@ -38,11 +39,23 @@ func Install(app *gin.Engine) {
 	file.POST("/merge-chunks", fileController.MergeChunks)
 	file.POST("/favorite", fileController.AddFavorite)
 	file.GET("/download", fileController.DownloadFile)
+	file.GET("/preview", fileController.PreviewFile)
 	file.DELETE("/delete", fileController.DeleteFile)
 	file.DELETE("/favorite", fileController.RemoveFavorite)
 	file.POST("/rename", fileController.RenameFile)
 	file.POST("/copy", fileController.CopyFile)
 	file.POST("/move", fileController.MoveFile)
+
+	// 分享相关路由
+	share := api.Group("/share")
+	share.POST("/create", shareController.CreateShare)                    // 创建分享
+	share.GET("/info/:shareCode", shareController.GetShareInfo)           // 获取分享信息
+	share.POST("/validate/:shareCode", shareController.ValidateShare)     // 验证分享
+	share.GET("/download/:shareCode", shareController.DownloadSharedFile) // 下载分享文件
+	share.GET("/my", shareController.GetMyShares)                         // 获取我的分享列表
+	share.DELETE("/:shareCode", shareController.DeleteShare)              // 删除分享
+	share.PUT("/disable/:shareCode", shareController.DisableShare)        // 禁用分享
+	share.GET("/stats/:shareCode", shareController.GetShareStats)         // 获取分享统计
 }
 
 // RegisterGlobalMiddleware 注册全局中间件

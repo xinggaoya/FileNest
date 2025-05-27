@@ -8,15 +8,15 @@ export function formatFileSize(size: number): string {
   const k = 1024
 
   if (size === 0) return '0 B'
-  
+
   const i = Math.floor(Math.log(size) / Math.log(k))
   const value = size / Math.pow(k, i)
-  
+
   // 如果是 B，不显示小数点
   if (i === 0) {
     return Math.round(value) + ' ' + units[i]
   }
-  
+
   // 其他单位显示两位小数
   return value.toFixed(2) + ' ' + units[i]
 }
@@ -57,4 +57,4 @@ export function formatTime(time: string): string {
     hour: '2-digit',
     minute: '2-digit'
   })
-} 
+}

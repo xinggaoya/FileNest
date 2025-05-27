@@ -1,79 +1,122 @@
 package database
 
 import (
+	"FileNest/common/glog"
+	"FileNest/internal/config"
+	"FileNest/internal/model"
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
-// DBConfig 数据库配置结构体
-type DBConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
+var DB *gorm.DB
+
+// InitDB 初始化数据库连接
+func InitDB() error {
+	cfg := config.Database
+
+	// 构建DSN
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
+
+	glog.Infof("正在连接数据库: %s@%s:%d/%s", cfg.Username, cfg.Host, cfg.Port, cfg.Database)
+
+	// 配置GORM
+	config := &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent), // 生产环境使用Silent，开发环境可以用Info
+	}
+
+	var err error
+	DB, err = gorm.Open(mysql.Open(dsn), config)
+	if err != nil {
+		return fmt.Errorf("连接数据库失败: %v", err)
+	}
+
+	// 配置连接池
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return fmt.Errorf("获取数据库实例失败: %v", err)
+	}
+
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+
+	// 测试连接
+	if err := sqlDB.Ping(); err != nil {
+		return fmt.Errorf("数据库连接测试失败: %v", err)
+	}
+
+	glog.Infof("数据库连接成功")
+
+	// 自动迁移
+	if err := autoMigrate(); err != nil {
+		return fmt.Errorf("数据库迁移失败: %v", err)
+	}
+
+	glog.Infof("数据库初始化完成")
+	return nil
 }
 
-var gormDB *gorm.DB
+// autoMigrate 自动迁移数据库表结构
+func autoMigrate() error {
+	glog.Info("开始数据库表结构迁移...")
 
-// Install 初始化数据库连接
-func Install(config DBConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		config.User,
-		config.Password,
-		config.Host,
-		config.Port,
-		config.DBName,
+	// 迁移所有模型
+	err := DB.AutoMigrate(
+		&model.Favorite{},
+		&model.UploadLog{},
+		&model.FileShare{},
 	)
 
-	// 配置 GORM 日志
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             time.Second, // 慢 SQL 阈值
-			LogLevel:                  logger.Info, // 日志级别
-			IgnoreRecordNotFoundError: true,        // 忽略ErrRecordNotFound错误
-			Colorful:                  true,        // 彩色打印
-		},
-	)
-
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger:                                   newLogger,
-		DisableForeignKeyConstraintWhenMigrating: true,
-		NamingStrategy: schema.NamingStrategy{
-			SingularTable: true,
-		},
-	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect database: %w", err)
+		return fmt.Errorf("自动迁移失败: %v", err)
 	}
 
-	// 测试数据库连接
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
-	}
-
-	err = sqlDB.Ping()
-	if err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	gormDB = db
-	return gormDB, nil
+	glog.Info("数据库表结构迁移完成")
+	return nil
 }
 
 // GetDB 获取数据库实例
 func GetDB() *gorm.DB {
-	if gormDB == nil {
-		log.Fatal("database is not initialized")
+	return DB
+}
+
+// Close 关闭数据库连接
+func Close() error {
+	if DB != nil {
+		sqlDB, err := DB.DB()
+		if err != nil {
+			return err
+		}
+		return sqlDB.Close()
 	}
-	return gormDB
+	return nil
+}
+
+// Transaction 执行事务
+func Transaction(fn func(tx *gorm.DB) error) error {
+	return DB.Transaction(fn)
+}
+
+// IsTableEmpty 检查表是否为空
+func IsTableEmpty(tableName string) (bool, error) {
+	var count int64
+	err := DB.Table(tableName).Count(&count).Error
+	return count == 0, err
+}
+
+// TruncateTable 清空表数据
+func TruncateTable(tableName string) error {
+	return DB.Exec(fmt.Sprintf("TRUNCATE TABLE %s", tableName)).Error
+}
+
+// BackupTable 备份表数据（创建备份表）
+func BackupTable(tableName string) error {
+	backupTableName := fmt.Sprintf("%s_backup_%s", tableName, time.Now().Format("20060102150405"))
+	sql := fmt.Sprintf("CREATE TABLE %s AS SELECT * FROM %s", backupTableName, tableName)
+	return DB.Exec(sql).Error
 }

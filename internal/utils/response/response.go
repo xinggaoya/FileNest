@@ -16,7 +16,7 @@ type Response struct {
 // Success 成功响应
 func Success(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, Response{
-		Code:    1000,
+		Code:    200,
 		Message: "success",
 		Data:    data,
 	})
@@ -25,7 +25,7 @@ func Success(c *gin.Context, data interface{}) {
 // Error 错误响应
 func Error(c *gin.Context, message string) {
 	c.JSON(http.StatusOK, Response{
-		Code:    1001,
+		Code:    400,
 		Message: message,
 		Data:    nil,
 	})

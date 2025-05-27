@@ -5,6 +5,7 @@ import (
 	"FileNest/internal/cache"
 	"FileNest/internal/consts"
 	"FileNest/internal/model"
+	"FileNest/internal/repository"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,7 +23,16 @@ import (
   @date: 2024/9/28
 **/
 
-type FileServiceImpl struct{}
+type FileServiceImpl struct {
+	favoriteRepo repository.FavoriteRepository
+}
+
+// NewFileServiceImpl 创建文件服务实例
+func NewFileServiceImpl() *FileServiceImpl {
+	return &FileServiceImpl{
+		favoriteRepo: repository.NewFavoriteRepository(),
+	}
+}
 
 func init() {
 	// 确保上传目录存在
@@ -411,13 +421,19 @@ func (s *FileServiceImpl) AddFavorite(filePath string) error {
 
 	// 创建收藏记录
 	favorite := model.Favorite{
-		Name:       info.Name(),
-		Path:       filePath,
-		IsDir:      info.IsDir(),
-		CreateTime: time.Now(),
+		Name:     info.Name(),
+		Path:     filePath,
+		IsDir:    info.IsDir(),
+		FileSize: info.Size(),
+		FileType: filepath.Ext(info.Name()),
 	}
 
-	// TODO: 保存到数据库
+	// 保存到数据库
+	if err := s.favoriteRepo.Create(&favorite); err != nil {
+		glog.Errorf("添加收藏失败: %s", err)
+		return err
+	}
+
 	glog.Infof("收藏成功: %+v", favorite)
 	return nil
 }
@@ -425,15 +441,30 @@ func (s *FileServiceImpl) AddFavorite(filePath string) error {
 // RemoveFavorite 取消收藏
 func (s *FileServiceImpl) RemoveFavorite(filePath string) error {
 	glog.Infof("取消收藏，文件路径: %s", filePath)
-	// TODO: 从数据库中删除
+
+	// 从数据库中删除
+	if err := s.favoriteRepo.DeleteByPath(filePath); err != nil {
+		glog.Errorf("取消收藏失败: %s", err)
+		return err
+	}
+
+	glog.Infof("取消收藏成功: %s", filePath)
 	return nil
 }
 
 // GetFavorites 获取收藏列表
 func (s *FileServiceImpl) GetFavorites() ([]model.Favorite, error) {
 	glog.Info("获取收藏列表")
-	// TODO: 从数据库中查询
-	return []model.Favorite{}, nil
+
+	// 从数据库中查询
+	favorites, err := s.favoriteRepo.GetAll()
+	if err != nil {
+		glog.Errorf("获取收藏列表失败: %s", err)
+		return nil, err
+	}
+
+	glog.Infof("获取收藏列表成功，共 %d 条记录", len(favorites))
+	return favorites, nil
 }
 
 // CreateFolder 创建文件夹
@@ -690,4 +721,22 @@ func (h *FileServiceImpl) copyFileContent(src string, dest string) error {
 func (s *FileServiceImpl) ClearFileCache(path string) error {
 	s.clearFileRelatedCache(path)
 	return nil
+}
+
+// GetFileInfo 获取文件信息
+func (s *FileServiceImpl) GetFileInfo(path string) (*model.FileInfo, error) {
+	absPath := filepath.Join(consts.UploadDir, path)
+	fileInfo, err := os.Stat(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取文件信息失败: %s", err)
+	}
+
+	return &model.FileInfo{
+		FileName: filepath.Base(path),
+		FilePath: absPath,
+		FileSize: fileInfo.Size(),
+		FileType: filepath.Ext(path),
+		IsDir:    fileInfo.IsDir(),
+		ModTime:  fileInfo.ModTime().Format(time.DateTime),
+	}, nil
 }

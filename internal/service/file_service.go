@@ -36,8 +36,9 @@ type FileService interface {
 	MoveFile(srcPath string, destPath string) error
 	// ClearFileCache 清除缓存
 	ClearFileCache(path string) error
+	GetFileInfo(path string) (*model.FileInfo, error)
 }
 
 func NewFileService() FileService {
-	return &impl.FileServiceImpl{}
+	return impl.NewFileServiceImpl()
 }

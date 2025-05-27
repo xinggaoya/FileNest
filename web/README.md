@@ -1,39 +1,188 @@
-# web
+# FileNest Web Frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+## 项目重构说明
 
-## Recommended IDE Setup
+本前端项目已完成完全重构，采用现代化的设计理念和技术栈，提供美观、简约、现代化的文件管理界面。
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## 技术栈
 
-## Type Support for `.vue` Imports in TS
+- **框架**: Vue 3 + TypeScript
+- **状态管理**: Pinia + 持久化插件
+- **UI组件库**: Naive UI
+- **图标库**: @vicons/ionicons5 等多个图标库
+- **HTTP客户端**: Axios
+- **日期处理**: Day.js
+- **构建工具**: Vite
+- **代码规范**: ESLint + Prettier
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+## 主要特性
 
-## Customize configuration
+### 🎨 现代化UI设计
 
-See [Vite Configuration Reference](https://vitejs.dev/config/).
+- 简约清新的界面设计
+- 响应式布局，支持移动端
+- 流畅的动画过渡效果
+- 统一的设计语言
 
-## Project Setup
+### 📁 强大的文件管理功能
 
-```sh
+- 网格和列表两种视图模式
+- 智能文件类型识别和图标显示
+- 文件/文件夹的增删改操作
+- 路径导航面包屑
+- 文件搜索功能
+- 收藏夹管理
+
+### 🚀 优秀的用户体验
+
+- 快速响应的操作反馈
+- 智能的文件排序
+- 多选文件操作
+- 上下文菜单支持
+- 拖拽上传支持
+
+### 📊 详细的统计信息
+
+- 文件数量统计
+- 存储空间使用情况
+- 实时更新的数据展示
+
+## 项目结构
+
+```
+src/
+├── api/                    # API接口定义
+│   └── file.ts            # 文件相关API
+├── components/             # 可复用组件
+│   └── file/              # 文件管理相关组件
+│       ├── FileList.vue   # 文件列表组件
+│       ├── FileIcon.vue   # 文件图标组件
+│       └── ...            # 其他组件
+├── stores/                # Pinia状态管理
+│   └── file.ts           # 文件管理状态
+├── types/                 # TypeScript类型定义
+│   └── file.ts           # 文件相关类型
+├── utils/                 # 工具函数
+│   ├── file.ts           # 文件处理工具
+│   └── date.ts           # 日期格式化工具
+├── views/                 # 页面组件
+│   └── Home.vue          # 主页面
+├── styles/               # 样式文件
+│   └── global.css        # 全局样式
+├── config/               # 配置文件
+│   └── request.ts        # HTTP请求配置
+└── main.ts               # 应用入口
+```
+
+## 核心组件说明
+
+### FileStore (状态管理)
+
+- 文件列表管理
+- 当前路径跟踪
+- 搜索功能
+- 文件操作（增删改查）
+- 收藏管理
+- 视图模式切换
+
+### FileList (文件列表)
+
+- 支持网格和列表两种视图
+- 文件选择和多选
+- 文件类型图标显示
+- 排序功能
+- 双击操作（进入文件夹/下载文件）
+
+### FileIcon (文件图标)
+
+- 智能识别文件类型
+- 彩色图标显示
+- 支持自定义大小
+
+## 开发命令
+
+```bash
+# 安装依赖
 pnpm install
-```
 
-### Compile and Hot-Reload for Development
-
-```sh
+# 启动开发服务器
 pnpm dev
-```
 
-### Type-Check, Compile and Minify for Production
-
-```sh
+# 构建生产版本
 pnpm build
-```
 
-### Lint with [ESLint](https://eslint.org/)
+# 类型检查
+pnpm type-check
 
-```sh
+# 代码格式化
+pnpm format
+
+# 代码检查
 pnpm lint
 ```
+
+## 环境配置
+
+### 开发环境
+
+- Node.js 16+
+- pnpm 7+
+
+### 后端API
+
+- 确保后端服务运行在 `http://localhost:9040`
+- API代理配置在 `vite.config.ts` 中
+
+## 设计理念
+
+### 1. 用户体验优先
+
+- 直观的操作流程
+- 快速的响应速度
+- 清晰的视觉反馈
+
+### 2. 现代化设计
+
+- 扁平化设计语言
+- 合理的颜色搭配
+- 一致的间距和布局
+
+### 3. 响应式设计
+
+- 移动端友好
+- 自适应不同屏幕尺寸
+- 优化的触控体验
+
+### 4. 可维护性
+
+- 模块化的组件设计
+- TypeScript类型安全
+- 清晰的代码结构
+
+## 浏览器支持
+
+- Chrome (推荐)
+- Firefox
+- Safari
+- Edge
+
+## 下一步开发计划
+
+- [ ] 完善文件上传功能
+- [ ] 实现文件预览
+- [ ] 添加文件分享功能
+- [ ] 优化性能和加载速度
+- [ ] 添加更多文件操作功能
+- [ ] 实现主题切换
+
+## 贡献指南
+
+1. Fork 项目
+2. 创建特性分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
+
+## 许可证
+
+MIT License

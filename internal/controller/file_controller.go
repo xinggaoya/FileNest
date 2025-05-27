@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -488,6 +489,64 @@ func (h *FileController) MoveFile(ctx *gin.Context) {
 
 	glog.Info("移动成功")
 	response.Success(ctx, nil)
+}
+
+// PreviewFile 预览文件
+func (h *FileController) PreviewFile(ctx *gin.Context) {
+	path := ctx.Query("path")
+	if path == "" {
+		response.Error(ctx, "文件路径不能为空")
+		return
+	}
+
+	// 获取文件信息
+	fileInfo, err := h.fileService.GetFileInfo(path)
+	if err != nil {
+		glog.Errorf("获取文件信息失败: %s", err)
+		response.Error(ctx, "获取文件信息失败")
+		return
+	}
+
+	// 检查文件类型
+	ext := filepath.Ext(fileInfo.FileName)
+	contentType := "text/plain" // 默认文本类型
+
+	// 根据文件扩展名设置 Content-Type
+	switch strings.ToLower(ext) {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".gif":
+		contentType = "image/gif"
+	case ".webp":
+		contentType = "image/webp"
+	case ".bmp":
+		contentType = "image/bmp"
+	case ".svg":
+		contentType = "image/svg+xml"
+	case ".html":
+		contentType = "text/html"
+	case ".css":
+		contentType = "text/css"
+	case ".js":
+		contentType = "application/javascript"
+	case ".json":
+		contentType = "application/json"
+	case ".xml":
+		contentType = "application/xml"
+	case ".yaml", ".yml":
+		contentType = "text/yaml"
+	case ".md":
+		contentType = "text/markdown"
+	}
+
+	// 设置响应头
+	ctx.Header("Content-Type", contentType)
+	ctx.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", url.QueryEscape(fileInfo.FileName)))
+
+	// 发送文件内容
+	ctx.File(fileInfo.FilePath)
 }
 
 // checkDirectoryWritePermission 检查目录是否有写入权限
